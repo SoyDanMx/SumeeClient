@@ -27,6 +27,7 @@ import { PopularProjectCard } from '@/components/PopularProjectCard';
 import { getServiceIconConfig, extractServiceDetails } from '@/utils/serviceIcons';
 import { getFeaturedProfessionals, FeaturedProfessional, formatDistance } from '@/services/professionals';
 import { openWhatsApp } from '@/utils/whatsapp';
+import { MarketplaceBanner } from '@/components/MarketplaceBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -425,6 +426,11 @@ export default function HomeScreen() {
                     </View>
                 )}
 
+                {/* MARKETPLACE FOOTER - Al final para no distraer de los servicios */}
+                <View style={styles.marketplaceFooter}>
+                    <MarketplaceBanner />
+                </View>
+
             </ScrollView>
         </SafeAreaView>
     );
@@ -609,5 +615,9 @@ const styles = StyleSheet.create({
     customServiceDescription: {
         fontSize: 12,
         lineHeight: 16,
+    },
+    marketplaceFooter: {
+        marginTop: 24,
+        marginBottom: 32,
     },
 });

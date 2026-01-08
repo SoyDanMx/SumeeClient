@@ -14,6 +14,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     Switch,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -196,159 +197,161 @@ export function NotificationsModal({ visible, onClose }: NotificationsModalProps
                     activeOpacity={1}
                     onPress={onClose}
                 />
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.keyboardView}
-                >
-                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                        {/* Header */}
-                        <View style={styles.header}>
+                <View style={styles.keyboardView}>
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={{ flex: 1 }}
+                    >
+                        <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                            {/* Header */}
+                            <View style={styles.header}>
                             <Text variant="h2" weight="bold">
                                 Notificaciones
                             </Text>
-                            <TouchableOpacity
-                                onPress={onClose}
-                                style={styles.closeButton}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
-                                <Ionicons name="close" size={24} color={theme.text} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {loading ? (
-                            <View style={styles.loadingContainer}>
-                                <Text variant="body" color={theme.textSecondary}>
-                                    Cargando configuración...
-                                </Text>
+                                <TouchableOpacity
+                                    onPress={onClose}
+                                    style={styles.closeButton}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Ionicons name="close" size={24} color={theme.text} />
+                                </TouchableOpacity>
                             </View>
-                        ) : (
-                            <ScrollView
-                                style={styles.scrollView}
-                                contentContainerStyle={styles.scrollContent}
-                                showsVerticalScrollIndicator={false}
-                                keyboardShouldPersistTaps="handled"
-                            >
-                                {/* Toggle Principal */}
-                                <Card variant="elevated" style={[styles.sectionCard, { backgroundColor: theme.surface }]}>
-                                    <View style={styles.toggleRow}>
-                                        <View style={styles.toggleInfo}>
-                                            <Ionicons name="notifications" size={24} color={theme.primary} />
-                                            <View style={styles.toggleTextContainer}>
-                                                <Text variant="body" weight="bold">
-                                                    Notificaciones Push
-                                                </Text>
-                                                <Text variant="caption" color={theme.textSecondary}>
-                                                    Activa o desactiva todas las notificaciones
-                                                </Text>
+
+                            {loading ? (
+                                <View style={styles.loadingContainer}>
+                                    <Text variant="body" color={theme.textSecondary}>
+                                        Cargando configuración...
+                                    </Text>
+                                </View>
+                            ) : (
+                                <ScrollView
+                                    style={styles.scrollView}
+                                    contentContainerStyle={styles.scrollContent}
+                                    showsVerticalScrollIndicator={false}
+                                    keyboardShouldPersistTaps="handled"
+                                >
+                                    {/* Toggle Principal */}
+                                    <Card variant="elevated" style={[styles.sectionCard, { backgroundColor: theme.surface }]}>
+                                        <View style={styles.toggleRow}>
+                                            <View style={styles.toggleInfo}>
+                                                <Ionicons name="notifications" size={24} color={theme.primary} />
+                                                <View style={styles.toggleTextContainer}>
+                                                    <Text variant="body" weight="bold">
+                                                        Notificaciones Push
+                                                    </Text>
+                                                    <Text variant="caption" color={theme.textSecondary}>
+                                                        Activa o desactiva todas las notificaciones
+                                                    </Text>
+                                                </View>
                                             </View>
+                                            <Switch
+                                                value={settings.push_enabled}
+                                                onValueChange={() => toggleSetting('push_enabled')}
+                                                trackColor={{ false: theme.border, true: SUMEE_COLORS.PURPLE + '80' }}
+                                                thumbColor={settings.push_enabled ? SUMEE_COLORS.PURPLE : '#f4f3f4'}
+                                            />
                                         </View>
-                                        <Switch
-                                            value={settings.push_enabled}
-                                            onValueChange={() => toggleSetting('push_enabled')}
-                                            trackColor={{ false: theme.border, true: SUMEE_COLORS.PURPLE + '80' }}
-                                            thumbColor={settings.push_enabled ? SUMEE_COLORS.PURPLE : '#f4f3f4'}
-                                        />
-                                    </View>
-                                </Card>
+                                    </Card>
 
-                                {settings.push_enabled && (
-                                    <>
-                                        {/* Categorías de Notificaciones */}
-                                        <View style={styles.section}>
-                                            <Text variant="body" weight="bold" style={styles.sectionTitle}>
-                                                Tipos de Notificaciones
-                                            </Text>
-                                            <Card variant="elevated" style={[styles.sectionCard, { backgroundColor: theme.surface }]}>
-                                                <NotificationToggle
-                                                    icon="chatbubble-ellipses-outline"
-                                                    title="Comunicación con Profesionales"
-                                                    description="Avisos y mensajes del profesional asignado a tu servicio"
-                                                    value={settings.professional_communication}
-                                                    onToggle={() => toggleSetting('professional_communication')}
-                                                    theme={theme}
-                                                />
-                                                <View style={[styles.divider, { backgroundColor: theme.border }]} />
-                                                <NotificationToggle
-                                                    icon="notifications-circle-outline"
-                                                    title="Avisos de Plataforma"
-                                                    description="Notificaciones importantes de SumeeApp sobre tu cuenta y servicios"
-                                                    value={settings.platform_notifications}
-                                                    onToggle={() => toggleSetting('platform_notifications')}
-                                                    theme={theme}
-                                                />
-                                                <View style={[styles.divider, { backgroundColor: theme.border }]} />
-                                                <NotificationToggle
-                                                    icon="refresh-outline"
-                                                    title="Actualizaciones de Servicios"
-                                                    description="Cambios en el estado de tus servicios (aceptado, en progreso, completado)"
-                                                    value={settings.service_updates}
-                                                    onToggle={() => toggleSetting('service_updates')}
-                                                    theme={theme}
-                                                />
-                                            </Card>
-                                        </View>
+                                    {settings.push_enabled && (
+                                        <>
+                                            {/* Categorías de Notificaciones */}
+                                            <View style={styles.section}>
+                                                <Text variant="body" weight="bold" style={styles.sectionTitle}>
+                                                    Tipos de Notificaciones
+                                                </Text>
+                                                <Card variant="elevated" style={[styles.sectionCard, { backgroundColor: theme.surface }]}>
+                                                    <NotificationToggle
+                                                        icon="chatbubble-ellipses-outline"
+                                                        title="Comunicación con Profesionales"
+                                                        description="Avisos y mensajes del profesional asignado a tu servicio"
+                                                        value={settings.professional_communication}
+                                                        onToggle={() => toggleSetting('professional_communication')}
+                                                        theme={theme}
+                                                    />
+                                                    <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                                                    <NotificationToggle
+                                                        icon="notifications-circle-outline"
+                                                        title="Avisos de Plataforma"
+                                                        description="Notificaciones importantes de SumeeApp sobre tu cuenta y servicios"
+                                                        value={settings.platform_notifications}
+                                                        onToggle={() => toggleSetting('platform_notifications')}
+                                                        theme={theme}
+                                                    />
+                                                    <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                                                    <NotificationToggle
+                                                        icon="refresh-outline"
+                                                        title="Actualizaciones de Servicios"
+                                                        description="Cambios en el estado de tus servicios (aceptado, en progreso, completado)"
+                                                        value={settings.service_updates}
+                                                        onToggle={() => toggleSetting('service_updates')}
+                                                        theme={theme}
+                                                    />
+                                                </Card>
+                                            </View>
 
-                                        {/* Horarios de Silencio */}
-                                        <View style={styles.section}>
-                                            <Text variant="body" weight="bold" style={styles.sectionTitle}>
-                                                Horarios de Silencio
-                                            </Text>
-                                            <Card variant="elevated" style={[styles.sectionCard, { backgroundColor: theme.surface }]}>
-                                                <View style={styles.toggleRow}>
-                                                    <View style={styles.toggleInfo}>
-                                                        <Ionicons name="moon-outline" size={24} color={theme.primary} />
-                                                        <View style={styles.toggleTextContainer}>
-                                                            <Text variant="body" weight="bold">
-                                                                Activar Horarios de Silencio
-                                                            </Text>
+                                            {/* Horarios de Silencio */}
+                                            <View style={styles.section}>
+                                                <Text variant="body" weight="bold" style={styles.sectionTitle}>
+                                                    Horarios de Silencio
+                                                </Text>
+                                                <Card variant="elevated" style={[styles.sectionCard, { backgroundColor: theme.surface }]}>
+                                                    <View style={styles.toggleRow}>
+                                                        <View style={styles.toggleInfo}>
+                                                            <Ionicons name="moon-outline" size={24} color={theme.primary} />
+                                                            <View style={styles.toggleTextContainer}>
+                                                                <Text variant="body" weight="bold">
+                                                                    Activar Horarios de Silencio
+                                                                </Text>
+                                                                <Text variant="caption" color={theme.textSecondary}>
+                                                                    No recibir notificaciones durante estas horas
+                                                                </Text>
+                                                            </View>
+                                                        </View>
+                                                        <Switch
+                                                            value={settings.quiet_hours_enabled}
+                                                            onValueChange={() => toggleSetting('quiet_hours_enabled')}
+                                                            trackColor={{ false: theme.border, true: SUMEE_COLORS.PURPLE + '80' }}
+                                                            thumbColor={settings.quiet_hours_enabled ? SUMEE_COLORS.PURPLE : '#f4f3f4'}
+                                                        />
+                                                    </View>
+                                                    {settings.quiet_hours_enabled && (
+                                                        <View style={styles.quietHoursInfo}>
                                                             <Text variant="caption" color={theme.textSecondary}>
-                                                                No recibir notificaciones durante estas horas
+                                                                Silencio activo de {settings.quiet_hours_start} a {settings.quiet_hours_end}
                                                             </Text>
                                                         </View>
-                                                    </View>
-                                                    <Switch
-                                                        value={settings.quiet_hours_enabled}
-                                                        onValueChange={() => toggleSetting('quiet_hours_enabled')}
-                                                        trackColor={{ false: theme.border, true: SUMEE_COLORS.PURPLE + '80' }}
-                                                        thumbColor={settings.quiet_hours_enabled ? SUMEE_COLORS.PURPLE : '#f4f3f4'}
-                                                    />
-                                                </View>
-                                                {settings.quiet_hours_enabled && (
-                                                    <View style={styles.quietHoursInfo}>
-                                                        <Text variant="caption" color={theme.textSecondary}>
-                                                            Silencio activo de {settings.quiet_hours_start} a {settings.quiet_hours_end}
-                                                        </Text>
-                                                    </View>
-                                                )}
-                                            </Card>
-                                        </View>
-                                    </>
-                                )}
-
-                                {/* Botón Guardar */}
-                                <TouchableOpacity
-                                    style={[styles.saveButton, { backgroundColor: SUMEE_COLORS.PURPLE }]}
-                                    activeOpacity={0.8}
-                                    onPress={saveSettings}
-                                    disabled={saving}
-                                >
-                                    {saving ? (
-                                        <Text variant="body" weight="bold" color="#FFFFFF">
-                                            Guardando...
-                                        </Text>
-                                    ) : (
-                                        <>
-                                            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                                            <Text variant="body" weight="bold" color="#FFFFFF">
-                                                Guardar Cambios
-                                            </Text>
+                                                    )}
+                                                </Card>
+                                            </View>
                                         </>
                                     )}
-                                </TouchableOpacity>
-                            </ScrollView>
-                        )}
-                    </View>
-                </KeyboardAvoidingView>
+
+                                    {/* Botón Guardar */}
+                                    <TouchableOpacity
+                                        style={[styles.saveButton, { backgroundColor: SUMEE_COLORS.PURPLE }]}
+                                        activeOpacity={0.8}
+                                        onPress={saveSettings}
+                                        disabled={saving}
+                                    >
+                                        {saving ? (
+                                            <Text variant="body" weight="bold" color="#FFFFFF">
+                                                Guardando...
+                                            </Text>
+                                        ) : (
+                                            <>
+                                                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                                                <Text variant="body" weight="bold" color="#FFFFFF">
+                                                    Guardar Cambios
+                                                </Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                </ScrollView>
+                            )}
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
             </View>
         </Modal>
     );
@@ -391,20 +394,27 @@ const styles = StyleSheet.create({
     modalContainer: {
         flex: 1,
         justifyContent: 'flex-end',
+        zIndex: 1000,
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     keyboardView: {
-        maxHeight: Dimensions.get('window').height * 0.6,
+        maxHeight: Dimensions.get('window').height * 0.75,
         width: '100%',
     },
     modalContent: {
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        flex: 1,
+        minHeight: 400,
+        maxHeight: Dimensions.get('window').height * 0.75,
         paddingBottom: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 10,
     },
     header: {
         flexDirection: 'row',

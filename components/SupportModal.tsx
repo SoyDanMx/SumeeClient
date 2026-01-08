@@ -157,11 +157,12 @@ export function SupportModal({ visible, onClose }: SupportModalProps) {
                     activeOpacity={1}
                     onPress={onClose}
                 />
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.keyboardView}
-                >
-                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <View style={styles.keyboardView}>
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={{ flex: 1 }}
+                    >
+                        <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
                     {/* Header */}
                     <View style={styles.header}>
                         <Text variant="h2" weight="bold">
@@ -336,8 +337,9 @@ export function SupportModal({ visible, onClose }: SupportModalProps) {
                             </View>
                         )}
                     </ScrollView>
-                    </View>
-                </KeyboardAvoidingView>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
             </View>
         </Modal>
     );
@@ -347,20 +349,27 @@ const styles = StyleSheet.create({
     modalContainer: {
         flex: 1,
         justifyContent: 'flex-end',
+        zIndex: 1000,
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     keyboardView: {
-        maxHeight: Dimensions.get('window').height * 0.6, // 60% de la altura de la pantalla - más compacto
+        maxHeight: Dimensions.get('window').height * 0.75,
         width: '100%',
     },
     modalContent: {
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        flex: 1, // Usa flex en lugar de height para mejor control
+        minHeight: 400,
+        maxHeight: Dimensions.get('window').height * 0.75,
         paddingBottom: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 10,
     },
     header: {
         flexDirection: 'row',

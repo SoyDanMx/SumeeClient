@@ -75,116 +75,118 @@ export function GuaranteeModal({ visible, onClose, onOpenSupport }: GuaranteeMod
                     activeOpacity={1}
                     onPress={onClose}
                 />
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.keyboardView}
-                >
-                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <View style={styles.headerIconContainer}>
-                            <View style={[styles.iconCircle, { backgroundColor: SUMEE_COLORS.PURPLE + '20' }]}>
-                                <Ionicons name="shield-checkmark" size={32} color={SUMEE_COLORS.PURPLE} />
-                            </View>
-                        </View>
-                        <Text variant="h2" weight="bold" style={styles.headerTitle}>
-                            Garantía Sumee
-                        </Text>
-                        <TouchableOpacity
-                            onPress={onClose}
-                            style={styles.closeButton}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                            <Ionicons name="close" size={24} color={theme.text} />
-                        </TouchableOpacity>
-                    </View>
-
-                    <ScrollView
-                        style={styles.scrollView}
-                        contentContainerStyle={styles.scrollContent}
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
+                <View style={styles.keyboardView}>
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={{ flex: 1 }}
                     >
-                        {/* Mensaje Principal */}
-                        <View style={styles.mainMessage}>
-                            <Text variant="h3" weight="bold" style={styles.mainTitle}>
-                                Tu tranquilidad es nuestra prioridad
-                            </Text>
-                            <Text variant="body" color={theme.textSecondary} style={styles.mainDescription}>
-                                En SumeeApp, protegemos tu inversión y garantizamos la calidad de cada servicio. 
-                                Trabajamos solo con profesionales verificados y ofrecemos protección completa 
-                                desde el inicio hasta la finalización del proyecto.
-                            </Text>
-                        </View>
-
-                        {/* Características */}
-                        <View style={styles.featuresContainer}>
-                            {GUARANTEE_FEATURES.map((feature, index) => (
-                                <Card
-                                    key={index}
-                                    variant="elevated"
-                                    style={[styles.featureCard, { backgroundColor: theme.surface }]}
-                                >
-                                    <View style={styles.featureContent}>
-                                        <View
-                                            style={[
-                                                styles.featureIconContainer,
-                                                { backgroundColor: SUMEE_COLORS.PURPLE + '15' },
-                                            ]}
-                                        >
-                                            <Ionicons
-                                                name={feature.icon}
-                                                size={24}
-                                                color={SUMEE_COLORS.PURPLE}
-                                            />
-                                        </View>
-                                        <View style={styles.featureTextContainer}>
-                                            <Text variant="body" weight="bold" style={styles.featureTitle}>
-                                                {feature.title}
-                                            </Text>
-                                            <Text variant="caption" color={theme.textSecondary}>
-                                                {feature.description}
-                                            </Text>
-                                        </View>
+                        <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                            {/* Header */}
+                            <View style={styles.header}>
+                                <View style={styles.headerIconContainer}>
+                                    <View style={[styles.iconCircle, { backgroundColor: SUMEE_COLORS.PURPLE + '20' }]}>
+                                        <Ionicons name="shield-checkmark" size={32} color={SUMEE_COLORS.PURPLE} />
                                     </View>
-                                </Card>
-                            ))}
-                        </View>
+                                </View>
+                                <Text variant="h2" weight="bold" style={styles.headerTitle}>
+                                    Garantía Sumee
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={onClose}
+                                    style={styles.closeButton}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Ionicons name="close" size={24} color={theme.text} />
+                                </TouchableOpacity>
+                            </View>
 
-                        {/* Información Adicional */}
-                        <View style={styles.additionalInfo}>
-                            <Card
-                                variant="elevated"
-                                style={[styles.infoCard, { backgroundColor: SUMEE_COLORS.PURPLE + '10' }]}
+                            <ScrollView
+                                style={styles.scrollView}
+                                contentContainerStyle={styles.scrollContent}
+                                showsVerticalScrollIndicator={false}
+                                keyboardShouldPersistTaps="handled"
                             >
-                                <View style={styles.infoContent}>
-                                    <Ionicons
-                                        name="information-circle"
-                                        size={20}
-                                        color={SUMEE_COLORS.PURPLE}
-                                    />
-                                    <Text variant="caption" style={[styles.infoText, { color: SUMEE_COLORS.PURPLE }]}>
-                                        La garantía aplica a todos los servicios contratados a través de SumeeApp. 
-                                        Para más detalles, consulta nuestros Términos y Condiciones.
+                                {/* Mensaje Principal */}
+                                <View style={styles.mainMessage}>
+                                    <Text variant="h3" weight="bold" style={styles.mainTitle}>
+                                        Tu tranquilidad es nuestra prioridad
+                                    </Text>
+                                    <Text variant="body" color={theme.textSecondary} style={styles.mainDescription}>
+                                        En SumeeApp, protegemos tu inversión y garantizamos la calidad de cada servicio. 
+                                        Trabajamos solo con profesionales verificados y ofrecemos protección completa 
+                                        desde el inicio hasta la finalización del proyecto.
                                     </Text>
                                 </View>
-                            </Card>
-                        </View>
 
-                        {/* Botón de Contacto */}
-                        <TouchableOpacity
-                            style={[styles.contactButton, { backgroundColor: SUMEE_COLORS.PURPLE }]}
-                            activeOpacity={0.8}
-                            onPress={handleContactPress}
-                        >
-                            <Ionicons name="help-circle-outline" size={20} color="#FFFFFF" />
-                            <Text variant="body" weight="bold" color="#FFFFFF">
-                                ¿Tienes dudas? Contáctanos
-                            </Text>
-                        </TouchableOpacity>
-                    </ScrollView>
-                    </View>
-                </KeyboardAvoidingView>
+                                {/* Características */}
+                                <View style={styles.featuresContainer}>
+                                    {GUARANTEE_FEATURES.map((feature, index) => (
+                                        <Card
+                                            key={index}
+                                            variant="elevated"
+                                            style={[styles.featureCard, { backgroundColor: theme.surface }]}
+                                        >
+                                            <View style={styles.featureContent}>
+                                                <View
+                                                    style={[
+                                                        styles.featureIconContainer,
+                                                        { backgroundColor: SUMEE_COLORS.PURPLE + '15' },
+                                                    ]}
+                                                >
+                                                    <Ionicons
+                                                        name={feature.icon}
+                                                        size={24}
+                                                        color={SUMEE_COLORS.PURPLE}
+                                                    />
+                                                </View>
+                                                <View style={styles.featureTextContainer}>
+                                                    <Text variant="body" weight="bold" style={styles.featureTitle}>
+                                                        {feature.title}
+                                                    </Text>
+                                                    <Text variant="caption" color={theme.textSecondary}>
+                                                        {feature.description}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        </Card>
+                                    ))}
+                                </View>
+
+                                {/* Información Adicional */}
+                                <View style={styles.additionalInfo}>
+                                    <Card
+                                        variant="elevated"
+                                        style={[styles.infoCard, { backgroundColor: SUMEE_COLORS.PURPLE + '10' }]}
+                                    >
+                                        <View style={styles.infoContent}>
+                                            <Ionicons
+                                                name="information-circle"
+                                                size={20}
+                                                color={SUMEE_COLORS.PURPLE}
+                                            />
+                                            <Text variant="caption" style={[styles.infoText, { color: SUMEE_COLORS.PURPLE }]}>
+                                                La garantía aplica a todos los servicios contratados a través de SumeeApp. 
+                                                Para más detalles, consulta nuestros Términos y Condiciones.
+                                            </Text>
+                                        </View>
+                                    </Card>
+                                </View>
+
+                                {/* Botón de Contacto */}
+                                <TouchableOpacity
+                                    style={[styles.contactButton, { backgroundColor: SUMEE_COLORS.PURPLE }]}
+                                    activeOpacity={0.8}
+                                    onPress={handleContactPress}
+                                >
+                                    <Ionicons name="help-circle-outline" size={20} color="#FFFFFF" />
+                                    <Text variant="body" weight="bold" color="#FFFFFF">
+                                        ¿Tienes dudas? Contáctanos
+                                    </Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
             </View>
         </Modal>
     );
@@ -194,20 +196,27 @@ const styles = StyleSheet.create({
     modalContainer: {
         flex: 1,
         justifyContent: 'flex-end',
+        zIndex: 1000,
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     keyboardView: {
-        maxHeight: Dimensions.get('window').height * 0.6, // 60% de la altura de la pantalla - más compacto
+        maxHeight: Dimensions.get('window').height * 0.75,
         width: '100%',
     },
     modalContent: {
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        flex: 1, // Usa flex en lugar de height para mejor control
+        minHeight: 400,
+        maxHeight: Dimensions.get('window').height * 0.75,
         paddingBottom: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 10,
     },
     header: {
         padding: 20,
