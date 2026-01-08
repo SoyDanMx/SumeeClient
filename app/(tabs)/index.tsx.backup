@@ -1,0 +1,405 @@
+import React, { useState } from 'react';
+import {
+    View,
+    ScrollView,
+    TouchableOpacity,
+    Image,
+    TextInput,
+    StyleSheet,
+    Dimensions,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Text } from '@/components/Text';
+import { SearchBar } from '@/components/SearchBar';
+import { ServiceCard } from '@/components/ServiceCard';
+import { ProfessionalCard } from '@/components/ProfessionalCard';
+import { SUMEE_COLORS } from '@/constants/Colors';
+
+const { width } = Dimensions.get('window');
+
+// Datos Mock (Simulando Supabase por ahora)
+const CATEGORIES = [
+    { id: 'electric', name: 'Electricidad', icon: 'flash', color: SUMEE_COLORS.CATEGORY_ELECTRIC.bg, iconColor: SUMEE_COLORS.CATEGORY_ELECTRIC.icon },
+    { id: 'plumbing', name: 'Plomería', icon: 'water', color: SUMEE_COLORS.CATEGORY_PLUMBING.bg, iconColor: SUMEE_COLORS.CATEGORY_PLUMBING.icon },
+    { id: 'ac', name: 'Climatización', icon: 'snow', color: SUMEE_COLORS.CATEGORY_AC.bg, iconColor: SUMEE_COLORS.CATEGORY_AC.icon },
+    { id: 'cleaning', name: 'Limpieza', icon: 'sparkles', color: SUMEE_COLORS.CATEGORY_CLEANING.bg, iconColor: SUMEE_COLORS.CATEGORY_CLEANING.icon },
+    { id: 'locksmith', name: 'Cerrajería', icon: 'key', color: SUMEE_COLORS.CATEGORY_LOCKSMITH.bg, iconColor: SUMEE_COLORS.CATEGORY_LOCKSMITH.icon },
+    { id: 'paint', name: 'Pintura', icon: 'color-palette', color: SUMEE_COLORS.CATEGORY_PAINT.bg, iconColor: SUMEE_COLORS.CATEGORY_PAINT.icon },
+];
+
+const POPULAR_SERVICES = [
+    { 
+        id: 1, 
+        title: 'Instalación de Aire Acondicionado', 
+        price: 'Desde $900', 
+        image: 'https://images.unsplash.com/photo-1581094794329-c8112a89af12?q=80&w=400' 
+    },
+    { 
+        id: 2, 
+        title: 'Limpieza Profunda', 
+        price: 'Desde $550', 
+        image: 'https://images.unsplash.com/photo-1581578731117-104f2a417954?q=80&w=400' 
+    },
+    { 
+        id: 3, 
+        title: 'Reparación Eléctrica', 
+        price: 'Desde $450', 
+        image: 'https://images.unsplash.com/photo-1621905251918-48416bd8575a?q=80&w=400' 
+    },
+];
+
+// Datos Mock de Profesionales Destacados (Inspirado en TaskRabbit)
+const FEATURED_PROFESSIONALS = [
+    {
+        id: 1,
+        name: 'Carlos Mendoza',
+        specialty: 'Electricista',
+        rating: 4.9,
+        completedJobs: 147,
+        photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200',
+        verified: true,
+    },
+    {
+        id: 2,
+        name: 'María González',
+        specialty: 'Plomera',
+        rating: 4.8,
+        completedJobs: 203,
+        photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200',
+        verified: true,
+    },
+    {
+        id: 3,
+        name: 'Roberto Silva',
+        specialty: 'Climatización',
+        rating: 4.7,
+        completedJobs: 89,
+        photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200',
+        verified: true,
+    },
+];
+
+export default function HomeScreen() {
+    const { theme } = useTheme();
+    const [searchQuery, setSearchQuery] = useState('');
+
+    return (
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+            <StatusBar style="dark" />
+            
+            {/* 1. HEADER: Ubicación y Perfil */}
+            <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+                <View style={styles.locationContainer}>
+                    <View style={[styles.locationIcon, { backgroundColor: theme.primary + '20' }]}>
+                        <Ionicons name="location" size={20} color={theme.primary} />
+                    </View>
+                    <View style={styles.locationText}>
+                        <Text variant="caption" color={theme.textSecondary}>Ubicación actual</Text>
+                        <Text variant="body" weight="bold">Colonia Roma, CDMX ▾</Text>
+                    </View>
+                </View>
+                <TouchableOpacity 
+                    style={[styles.notificationButton, { backgroundColor: theme.surface }]}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="notifications-outline" size={24} color={theme.text} />
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+                showsVerticalScrollIndicator={false} 
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+            >
+                
+                {/* 2. HERO: Bienvenida y Búsqueda (Estilo Angi) */}
+                <View style={styles.heroSection}>
+                    <Text variant="h1" weight="bold" style={styles.heroTitle}>
+                        ¿Qué necesitas arreglar hoy?
+                    </Text>
+                    <Text variant="body" color={theme.textSecondary} style={styles.heroSubtitle}>
+                        Encuentra expertos certificados en minutos.
+                    </Text>
+
+                    {/* Barra de Búsqueda */}
+                    <View style={styles.searchWrapper}>
+                        <SearchBar 
+                            placeholder="Buscar 'Electricista', 'Fuga'..." 
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                    </View>
+                </View>
+
+                {/* 3. CATEGORÍAS PRINCIPALES (Grid) */}
+                <View style={styles.categoriesSection}>
+                    <View style={styles.sectionHeader}>
+                        <Text variant="h3" weight="bold">Servicios</Text>
+                        <TouchableOpacity activeOpacity={0.7}>
+                            <Text variant="body" weight="600" color={theme.primary}>Ver todos</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.categoriesGrid}>
+                        {CATEGORIES.map((cat) => (
+                            <TouchableOpacity 
+                                key={cat.id}
+                                style={styles.categoryItem}
+                                activeOpacity={0.7}
+                            >
+                                <View 
+                                    style={[
+                                        styles.categoryIconContainer,
+                                        { backgroundColor: cat.color }
+                                    ]}
+                                >
+                                    <Ionicons name={cat.icon as any} size={28} color={cat.iconColor} />
+                                </View>
+                                <Text variant="caption" weight="medium" style={styles.categoryName}>
+                                    {cat.name}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                {/* 4. BANNER PROMOCIONAL (Estilo Uber/Rappi) */}
+                <View style={styles.bannerSection}>
+                    <View style={[styles.banner, { backgroundColor: theme.primary }]}>
+                        <View style={styles.bannerContent}>
+                            <Text variant="h3" weight="bold" color="#FFFFFF" style={styles.bannerTitle}>
+                                Garantía Sumee
+                            </Text>
+                            <Text variant="caption" color="rgba(255,255,255,0.9)" style={styles.bannerText}>
+                                Tu dinero está protegido hasta que el trabajo esté terminado.
+                            </Text>
+                            <TouchableOpacity 
+                                style={[styles.bannerButton, { backgroundColor: theme.white }]}
+                                activeOpacity={0.8}
+                            >
+                                <Text variant="caption" weight="bold" color={theme.primary}>
+                                    Saber más
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                        {/* Decoración circular */}
+                        <View style={styles.bannerDecoration} />
+                        <Ionicons 
+                            name="shield-checkmark" 
+                            size={60} 
+                            color="rgba(255,255,255,0.2)" 
+                            style={styles.bannerIcon} 
+                        />
+                    </View>
+                </View>
+
+                {/* 5. PROFESIONALES DESTACADOS (Inspirado en TaskRabbit) */}
+                <View style={styles.professionalsSection}>
+                    <View style={styles.sectionHeader}>
+                        <Text variant="h3" weight="bold">Profesionales Destacados</Text>
+                        <TouchableOpacity activeOpacity={0.7}>
+                            <Text variant="body" weight="600" color={theme.primary}>Ver todos</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false} 
+                        style={styles.professionalsScroll}
+                        contentContainerStyle={styles.professionalsScrollContent}
+                    >
+                        {FEATURED_PROFESSIONALS.map((professional) => (
+                            <ProfessionalCard
+                                key={professional.id}
+                                id={professional.id}
+                                name={professional.name}
+                                specialty={professional.specialty}
+                                rating={professional.rating}
+                                completedJobs={professional.completedJobs}
+                                photo={professional.photo}
+                                verified={professional.verified}
+                            />
+                        ))}
+                    </ScrollView>
+                </View>
+
+                {/* 6. POPULARES / TENDENCIA */}
+                <View style={styles.popularSection}>
+                    <Text variant="h3" weight="bold" style={styles.sectionTitle}>
+                        Populares esta semana
+                    </Text>
+                    <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false} 
+                        style={styles.servicesScroll}
+                        contentContainerStyle={styles.servicesScrollContent}
+                    >
+                        {POPULAR_SERVICES.map((item) => (
+                            <ServiceCard
+                                key={item.id}
+                                id={item.id}
+                                title={item.title}
+                                price={item.price}
+                                image={item.image}
+                            />
+                        ))}
+                    </ScrollView>
+                </View>
+
+            </ScrollView>
+        </SafeAreaView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+    },
+    locationContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    locationIcon: {
+        padding: 8,
+        borderRadius: 20,
+        marginRight: 12,
+    },
+    locationText: {
+        flex: 1,
+    },
+    notificationButton: {
+        padding: 8,
+        borderRadius: 20,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingBottom: 40,
+    },
+    heroSection: {
+        paddingHorizontal: 20,
+        paddingTop: 24,
+        paddingBottom: 8,
+    },
+    heroTitle: {
+        marginBottom: 4,
+    },
+    heroSubtitle: {
+        marginBottom: 16,
+    },
+    searchWrapper: {
+        marginTop: 8,
+    },
+    categoriesSection: {
+        paddingHorizontal: 20,
+        marginTop: 24,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    categoriesGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+    },
+    categoryItem: {
+        width: (width - 60) / 3, // 3 columnas con padding
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    categoryIconContainer: {
+        width: 64,
+        height: 64,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    categoryName: {
+        textAlign: 'center',
+    },
+    bannerSection: {
+        paddingHorizontal: 20,
+        marginTop: 8,
+        marginBottom: 24,
+    },
+    banner: {
+        borderRadius: 24,
+        padding: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        overflow: 'hidden',
+        position: 'relative',
+    },
+    bannerContent: {
+        flex: 1,
+        zIndex: 10,
+    },
+    bannerTitle: {
+        marginBottom: 4,
+    },
+    bannerText: {
+        marginBottom: 12,
+        width: '80%',
+    },
+    bannerButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        alignSelf: 'flex-start',
+    },
+    bannerDecoration: {
+        position: 'absolute',
+        right: -16,
+        bottom: -40,
+        width: 128,
+        height: 128,
+        borderRadius: 64,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    bannerIcon: {
+        position: 'absolute',
+        right: 10,
+        bottom: -5,
+    },
+    professionalsSection: {
+        paddingHorizontal: 20,
+        marginTop: 8,
+        marginBottom: 24,
+    },
+    professionalsScroll: {
+        marginHorizontal: -20,
+    },
+    professionalsScrollContent: {
+        paddingHorizontal: 20,
+    },
+    popularSection: {
+        paddingHorizontal: 20,
+        marginTop: 8,
+    },
+    sectionTitle: {
+        marginBottom: 16,
+    },
+    servicesScroll: {
+        marginHorizontal: -20,
+    },
+    servicesScrollContent: {
+        paddingHorizontal: 20,
+    },
+});
+
