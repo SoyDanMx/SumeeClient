@@ -20,6 +20,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ViewStyle, Image, Animated, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface SumeeLogoProps {
     size?: 'small' | 'medium' | 'large';
@@ -34,9 +35,9 @@ const getResponsiveSize = (baseSize: 'small' | 'medium' | 'large') => {
     const scaleFactor = width < 375 ? 0.85 : width > 414 ? 1.15 : 1.0;
     
     const sizes = {
-        small: { icon: 40, text: 16, spacing: 8 },
-        medium: { icon: 80, text: 24, spacing: 12 },
-        large: { icon: 120, text: 32, spacing: 16 },
+        small: { icon: 60, text: 18, spacing: 10 },
+        medium: { icon: 120, text: 28, spacing: 14 },
+        large: { icon: 180, text: 40, spacing: 20 }, // Aumentado de 120 a 180 para welcome screen
     };
     
     const base = sizes[baseSize];
@@ -94,28 +95,30 @@ export function SumeeLogo({
     }, []);
 
     // Determinar qué imagen usar según la variante
-    // Nota: En React Native, require() debe ser estático
-    // Si las imágenes no existen, el require() fallará en tiempo de compilación
-    // Por ahora, usamos un flag para indicar si queremos usar imágenes
-    // Cuando agregues las imágenes, descomenta las líneas correspondientes
+    // Nota: En React Native, require() debe ser estático y fallará si el archivo no existe
+    // Por seguridad, mantenemos USE_LOGO_IMAGES = false hasta que el archivo exista
+    // Cuando agregues la imagen, cambia USE_LOGO_IMAGES = true
     
-    const USE_LOGO_IMAGES = false; // Cambiar a true cuando agregues las imágenes
+    const USE_LOGO_IMAGES = true; // ✅ Logo integrado - activado
     
     let logoSource: any = null;
     let useImage = false;
     
+    // Cargar imágenes según la variante
     if (USE_LOGO_IMAGES) {
-        // Cuando agregues las imágenes, descomenta estas líneas:
-        // if (variant === 'light') {
-        //     logoSource = require('@/assets/images/logo-light.png');
-        //     useImage = true;
-        // } else if (variant === 'dark') {
-        //     logoSource = require('@/assets/images/logo-dark.png');
-        //     useImage = true;
-        // } else if (variant === 'white') {
-        //     logoSource = require('@/assets/images/logo-white.png');
-        //     useImage = true;
-        // }
+        if (variant === 'white') {
+            // Para fondo oscuro (welcome screen con gradiente púrpura)
+            logoSource = require('@/assets/images/logo-white.png');
+            useImage = true;
+        } else if (variant === 'light') {
+            // Para fondo claro - usar logo-white como fallback si no existe logo-light
+            logoSource = require('@/assets/images/logo-white.png');
+            useImage = true;
+        } else if (variant === 'dark') {
+            // Para fondo oscuro alternativo - usar logo-white como fallback si no existe logo-dark
+            logoSource = require('@/assets/images/logo-white.png');
+            useImage = true;
+        }
     }
 
     return (
@@ -141,12 +144,46 @@ export function SumeeLogo({
                         resizeMode="contain"
                     />
                 ) : (
-                    // Fallback: renderizar con iconos (placeholder)
-                    <View style={[styles.logoWrapper, { width: dimensions.icon, height: dimensions.icon }]}>
-                        <View style={[styles.logoPlaceholder, { backgroundColor: colors.icon + '20' }]}>
-                            <Text style={[styles.logoPlaceholderText, { color: colors.icon, fontSize: dimensions.icon * 0.4 }]}>
-                                SuMee
-                            </Text>
+                    // Fallback: renderizar logo directamente sin contenedor extra
+                    // Logo simplificado: corazón grande con apretón de manos
+                    <View style={styles.iconHeartContainer}>
+                        {/* Corazón principal - más grande y visible */}
+                        <Ionicons 
+                            name="heart" 
+                            size={dimensions.icon * 0.8} 
+                            color={colors.icon}
+                            style={styles.heartIcon}
+                        />
+                        {/* Apretón de manos superpuesto en el centro */}
+                        <View style={styles.handshakeContainer}>
+                            <Ionicons 
+                                name="hand-left" 
+                                size={dimensions.icon * 0.35} 
+                                color={colors.icon}
+                                style={[
+                                    styles.handIcon, 
+                                    {
+                                        transform: [
+                                            { rotate: '-25deg' }, 
+                                            { translateX: -dimensions.icon * 0.18 }
+                                        ]
+                                    }
+                                ]}
+                            />
+                            <Ionicons 
+                                name="hand-right" 
+                                size={dimensions.icon * 0.35} 
+                                color={colors.icon}
+                                style={[
+                                    styles.handIcon,
+                                    {
+                                        transform: [
+                                            { rotate: '25deg' }, 
+                                            { translateX: dimensions.icon * 0.18 }
+                                        ]
+                                    }
+                                ]}
+                            />
                         </View>
                     </View>
                 )}
@@ -192,29 +229,45 @@ const styles = StyleSheet.create({
         // Imagen real del logo
     },
     logoWrapper: {
+        // Ya no se usa, el logo se renderiza directamente
+    },
+    iconHeartContainer: {
+        position: 'relative',
         alignItems: 'center',
         justifyContent: 'center',
-        position: 'relative',
-    },
-    logoPlaceholder: {
         width: '100%',
         height: '100%',
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-        // Sombra sutil
-        shadowColor: '#820AD1',
+        // Sombra sutil para profundidad
+        shadowColor: '#000',
         shadowOffset: {
             width: 0,
-            height: 2,
+            height: 4,
         },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
     },
-    logoPlaceholderText: {
-        fontWeight: '700',
-        letterSpacing: 1,
+    heartIcon: {
+        position: 'absolute',
+        zIndex: 1,
+    },
+    handshakeContainer: {
+        position: 'absolute',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '70%',
+        height: '70%',
+        zIndex: 2,
+    },
+    handIcon: {
+        position: 'absolute',
+    },
+    handLeft: {
+        // Transform se aplica dinámicamente en el componente
+    },
+    handRight: {
+        // Transform se aplica dinámicamente en el componente
     },
     text: {
         fontWeight: '700',

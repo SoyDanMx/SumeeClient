@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { Text } from '@/components/Text';
 import { SearchBar } from '@/components/SearchBar';
 import { AISearchBar } from '@/components/AISearchBar';
@@ -33,7 +34,7 @@ const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
     const { theme } = useTheme();
-    const { user } = useAuth();
+    const { user, profile, reloadProfile } = useAuth();
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState('');
     const [categories, setCategories] = useState<Category[]>([]);
@@ -194,7 +195,6 @@ export default function HomeScreen() {
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
             >
-                
                 {/* 2. HERO: Bienvenida y Búsqueda (Estilo Angi) */}
                 <View style={styles.heroSection}>
                     <Text variant="h1" weight="bold" style={styles.heroTitle}>

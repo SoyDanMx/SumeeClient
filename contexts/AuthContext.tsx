@@ -72,18 +72,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             router.replace('/auth/login');
         } else if (isAuth) {
             // Verificar si ha completado el onboarding
+            // IMPORTANTE: Si profile es null o onboarding_completed es null/false, mostrar welcome
             const hasCompletedOnboarding = profile?.onboarding_completed === true;
+            
+            console.log('[Auth] Navigation check:', {
+                hasProfile: !!profile,
+                onboardingCompleted: profile?.onboarding_completed,
+                hasCompletedOnboarding,
+                inOnboardingGroup,
+                inTabsGroup,
+                inAuthGroup,
+                currentSegment: segments[0],
+            });
             
             if (!hasCompletedOnboarding && !inOnboardingGroup) {
                 // Primera vez → mostrar onboarding
-                console.log('[Auth] User has not completed onboarding, redirecting to welcome');
+                console.log('[Auth] ✅ User has not completed onboarding, redirecting to welcome');
                 router.replace('/onboarding/welcome');
             } else if (hasCompletedOnboarding && inAuthGroup) {
                 // Ya completó onboarding → ir a home
+                console.log('[Auth] ✅ User completed onboarding, redirecting to home');
                 router.replace('/(tabs)');
             } else if (hasCompletedOnboarding && inOnboardingGroup) {
                 // Ya completó pero está en onboarding → ir a home
+                console.log('[Auth] ✅ User completed onboarding but in onboarding group, redirecting to home');
                 router.replace('/(tabs)');
+            } else if (!hasCompletedOnboarding && inTabsGroup) {
+                // No completó pero está en tabs → ir a welcome
+                console.log('[Auth] ✅ User has not completed onboarding but in tabs, redirecting to welcome');
+                router.replace('/onboarding/welcome');
             }
         }
     }, [user, session, isLoading, segments, profile, router]);
@@ -152,6 +169,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                         full_name: user.email?.split('@')[0] || 'Usuario',
                         role: 'client',
                         user_type: 'client',
+                        onboarding_completed: false, // IMPORTANTE: Por defecto false para mostrar welcome
                     })
                     .select()
                     .single();
