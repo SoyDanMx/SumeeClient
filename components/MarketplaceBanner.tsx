@@ -1,47 +1,48 @@
 /**
  * Marketplace Banner Component
- * Banner promocional para el marketplace de Sumee
+ * Banner promocional para el marketplace de TulBox
  */
 
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Dimensions, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Text } from '@/components/Text';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 
 const { width } = Dimensions.get('window');
 
 interface MarketplaceBannerProps {
     onPress?: () => void;
+    style?: ViewStyle;
 }
 
-export function MarketplaceBanner({ onPress }: MarketplaceBannerProps) {
+export function MarketplaceBanner({ onPress, style }: MarketplaceBannerProps) {
     const router = useRouter();
     const { theme } = useTheme();
-    
+
     const handlePress = () => {
         // Analytics tracking
         console.log('[MarketplaceBanner] Banner clicked');
         // trackMarketplaceEvent('marketplace_banner_clicked');
-        
+
         if (onPress) {
             onPress();
         } else {
             router.push('/marketplace');
         }
     };
-    
+
     return (
-        <TouchableOpacity 
+        <TouchableOpacity
             activeOpacity={0.9}
             onPress={handlePress}
-            style={styles.container}
+            style={[styles.container, style]}
         >
             <LinearGradient
-                colors={[SUMEE_COLORS.PURPLE, '#E91E63']}
+                colors={[TULBOX_COLORS.PURPLE, '#E91E63']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.gradient}
@@ -52,7 +53,7 @@ export function MarketplaceBanner({ onPress }: MarketplaceBannerProps) {
                     </View>
                     <View style={styles.textContainer}>
                         <Text variant="body" weight="bold" color="#FFFFFF" style={styles.title}>
-                            🛒 Marketplace Sumee
+                            🛒 Marketplace de TulBox
                         </Text>
                         <Text variant="caption" color="#FFFFFF" style={styles.subtitle}>
                             Herramientas y equipos para tu próximo proyecto

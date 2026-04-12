@@ -21,7 +21,7 @@ import { Card } from '@/components/Card';
 import { Badge } from '@/components/Badge';
 import { TextInput } from 'react-native';
 import { ProfileService, Address } from '@/services/profile';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 import { supabase } from '@/lib/supabase';
 
 export default function AddressesScreen() {

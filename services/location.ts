@@ -45,7 +45,6 @@ export class LocationService {
             // Obtener ubicación
             const location = await Location.getCurrentPositionAsync({
                 accuracy: Location.Accuracy.Balanced,
-                timeout: 15000,
             });
 
             const { latitude, longitude } = location.coords;

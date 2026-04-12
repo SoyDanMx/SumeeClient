@@ -6,7 +6,7 @@
 import { Linking } from 'react-native';
 import { router } from 'expo-router';
 
-const MARKETPLACE_BASE_URL = 'https://sumeeapp.com/marketplace';
+const MARKETPLACE_BASE_URL = 'https://tulbox.pro/en/marketplace';
 
 export interface MarketplaceOptions {
     category?: string;

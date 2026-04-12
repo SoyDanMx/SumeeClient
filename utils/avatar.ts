@@ -4,7 +4,7 @@
  * =========================================================================
  * 
  * Sistema de vanguardia tecnológica para detectar y renderizar avatares
- * actualizados desde SumeePros, con normalización inteligente de URLs,
+ * actualizados desde TulBoxPros, con normalización inteligente de URLs,
  * cache busting automático y fallbacks robustos.
  * 
  * Características:
@@ -34,7 +34,7 @@ const PUBLIC_BUCKETS = [
 /**
  * Avatar por defecto (placeholder)
  */
-export const DEFAULT_AVATAR = 'https://via.placeholder.com/150/6366F1/FFFFFF?text=Sumee';
+export const DEFAULT_AVATAR = 'https://via.placeholder.com/150/6366F1/FFFFFF?text=TulBox';
 
 /**
  * =========================================================================

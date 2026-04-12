@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { ServiceItem } from './services';
 import { findServiceByMapping, findServiceBySynonyms, ServiceMapping } from './serviceMapping';
+import { EmbeddingService } from './ml/embeddings';
 
 export interface AISearchResult {
     detected_service: ServiceItem | null;
@@ -16,12 +17,12 @@ export interface AISearchResult {
     };
 }
 
-// URL de la API de Sumeeapp-B (interfaz web) - Fallback si no hay API key local
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://sumeeapp.com';
+// URL de la API de TulBoxapp-B (interfaz web) - Fallback si no hay API key local
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://tulbox.pro';
 
 // API Key de Gemini (para llamadas directas a la API REST)
-// Usar process.env directamente para evitar problemas de scope
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+// Usar gemini-1.5-flash que es el modelo estable más rápido y económico
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 // Función helper para obtener la API key
 function getGeminiApiKey(): string | null {
@@ -175,7 +176,74 @@ export class AISearchService {
             }
         }
 
-        // CAPA 2: Si tenemos API key local, usar Gemini directamente
+        // CAPA 2: Búsqueda semántica con embeddings (Hugging Face vía Edge Function)
+        try {
+            const similar = await EmbeddingService.findSimilarServices(
+                problemDescription.trim(),
+                5
+            );
+            if (similar.length > 0 && similar[0].similarity >= 0.5) {
+                const top = similar[0];
+                const { data: fullService } = await supabase
+                    .from('service_catalog')
+                    .select('*')
+                    .eq('id', top.service_id)
+                    .eq('is_active', true)
+                    .single();
+                if (fullService) {
+                    const { data: alts } = await supabase
+                        .from('service_catalog')
+                        .select('*')
+                        .eq('discipline', top.discipline)
+                        .eq('is_active', true)
+                        .neq('id', top.service_id)
+                        .limit(3);
+                    const detected: ServiceItem = {
+                        id: fullService.id,
+                        service_name: fullService.service_name,
+                        discipline: fullService.discipline,
+                        price_type: 'fixed',
+                        min_price: fullService.min_price,
+                        max_price: fullService.max_price ?? undefined,
+                        unit: 'servicio',
+                        includes_materials: false,
+                        description: fullService.description,
+                    } as ServiceItem;
+                    const alternativesList = (alts || []).map((s: any) => ({
+                        id: s.id,
+                        service_name: s.service_name,
+                        discipline: s.discipline,
+                        price_type: 'fixed' as const,
+                        min_price: s.min_price,
+                        max_price: s.max_price ?? null,
+                        unit: 'servicio' as const,
+                        includes_materials: false,
+                        description: s.description,
+                    })) as ServiceItem[];
+                    console.log('[AISearchService] Embeddings (Hugging Face):', top.service_name, 'similarity', top.similarity);
+                    return {
+                        detected_service: detected,
+                        alternatives: alternativesList,
+                        confidence: Math.min(0.95, 0.5 + top.similarity),
+                        reasoning: `Encontré el servicio más parecido a lo que describiste: "${top.service_name}".`,
+                        pre_filled_data: {
+                            servicio: fullService.service_name,
+                            disciplina: top.discipline,
+                            descripcion: problemDescription,
+                            urgencia: 'media',
+                            precio_estimado: {
+                                min: fullService.min_price || 0,
+                                max: fullService.max_price || fullService.min_price * 1.5 || 0,
+                            },
+                        },
+                    };
+                }
+            }
+        } catch (embeddingError: any) {
+            console.log('[AISearchService] Embeddings no usados:', embeddingError?.message || embeddingError);
+        }
+
+        // CAPA 3: Si tenemos API key local, usar Gemini directamente
         const apiKey = getGeminiApiKey();
         if (apiKey) {
             try {
@@ -187,7 +255,7 @@ export class AISearchService {
             }
         }
 
-        // CAPA 3: Si no hay API key local, intentar API route de Sumeeapp-B (solo si está disponible)
+        // CAPA 4: Si no hay API key local, intentar API route de TulBoxapp-B (solo si está disponible)
         // Si falla, usar fallback local inmediatamente
         try {
             const apiResult = await this.analyzeWithAPIRoute(problemDescription);
@@ -235,7 +303,7 @@ export class AISearchService {
             .map((s, idx) => `${idx + 1}. ${s.service_name} (${s.discipline}) - Desde $${s.min_price}`)
             .join('\n');
 
-        const prompt = `Eres un asistente experto de Sumee App, una plataforma mexicana que conecta clientes con técnicos verificados.
+        const prompt = `Eres un asistente experto de TulBox App, una plataforma mexicana que conecta clientes con técnicos verificados.
 
 CONTEXTO:
 El cliente describe: "${problemDescription}"
@@ -328,8 +396,8 @@ RESPONDE EN FORMATO JSON ESTRICTO (sin markdown, sin código, solo JSON):
             detectedService = services.find((s) => {
                 const serviceNameLower = s.service_name.toLowerCase();
                 // Verificar si el nombre del servicio contiene palabras clave del query
-                const queryWords = queryLower.split(/\s+/).filter(w => w.length > 3);
-                return queryWords.some(word => serviceNameLower.includes(word)) &&
+                const queryWords = queryLower.split(/\s+/).filter((w: string) => w.length > 3);
+                return queryWords.some((word: string) => serviceNameLower.includes(word)) &&
                        s.discipline === geminiResult.discipline;
             });
         }
@@ -338,7 +406,7 @@ RESPONDE EN FORMATO JSON ESTRICTO (sin markdown, sin código, solo JSON):
         if (!detectedService) {
             const disciplineServices = services
                 .filter((s) => s.discipline === geminiResult.discipline)
-                .sort((a, b) => (b.completed_count || 0) - (a.completed_count || 0));
+                .sort((a, b) => ((b as any).completed_count || 0) - ((a as any).completed_count || 0));
             
             if (disciplineServices.length > 0) {
                 detectedService = disciplineServices[0];
@@ -357,7 +425,7 @@ RESPONDE EN FORMATO JSON ESTRICTO (sin markdown, sin código, solo JSON):
     }
 
     /**
-     * Analizar usando API route de Sumeeapp-B (fallback)
+     * Analizar usando API route de TulBoxapp-B (fallback)
      * Retorna error si la ruta no está disponible o hay problemas de conexión
      */
     private static async analyzeWithAPIRoute(problemDescription: string): Promise<AISearchResult> {
@@ -390,7 +458,7 @@ RESPONDE EN FORMATO JSON ESTRICTO (sin markdown, sin código, solo JSON):
                   max_price: result.detected_service.max_price,
                   unit: 'servicio',
                   includes_materials: false,
-                  description: null,
+                  description: undefined,
               }
             : null;
 
@@ -403,7 +471,7 @@ RESPONDE EN FORMATO JSON ESTRICTO (sin markdown, sin código, solo JSON):
             max_price: null,
             unit: 'servicio',
             includes_materials: false,
-            description: null,
+            description: undefined,
         }));
 
         return {
@@ -441,7 +509,7 @@ RESPONDE EN FORMATO JSON ESTRICTO (sin markdown, sin código, solo JSON):
                 max_price: detectedService.max_price,
                 unit: 'servicio',
                 includes_materials: false,
-                description: null,
+                description: undefined,
             } as ServiceItem,
             alternatives: alternatives.map((alt) => ({
                 id: alt.id,
@@ -452,7 +520,7 @@ RESPONDE EN FORMATO JSON ESTRICTO (sin markdown, sin código, solo JSON):
                 max_price: alt.max_price,
                 unit: 'servicio',
                 includes_materials: false,
-                description: null,
+                description: undefined,
             })) as ServiceItem[],
             confidence: geminiResult.confidence || 0.8,
             reasoning: geminiResult.reasoning || `Detecté que necesitas un servicio de ${detectedService.discipline}. "${detectedService.service_name}" es el más adecuado para tu problema.`,

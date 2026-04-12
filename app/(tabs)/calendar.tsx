@@ -19,12 +19,13 @@ import { Card } from '@/components/Card';
 import { Badge } from '@/components/Badge';
 import { getClientScheduledServices, formatTimeSlot, Appointment } from '@/services/scheduling';
 import { supabase } from '@/lib/supabase';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
+import { getLeadPriceFormatted } from '@/services/priceFormatter';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SUMEE_PURPLE = SUMEE_COLORS.PURPLE;
-const SUMEE_GREEN = SUMEE_COLORS.GREEN;
-const SUMEE_ORANGE = '#F59E0B';
+const TULBOX_PURPLE = TULBOX_COLORS.PURPLE;
+const TULBOX_GREEN = TULBOX_COLORS.GREEN;
+const TULBOX_ORANGE = '#F59E0B';
 
 // Helper functions
 const formatDate = (date: Date): string => {
@@ -72,12 +73,12 @@ const getStatusColor = (status: string): string => {
     switch (status) {
         case 'accepted':
         case 'confirmed':
-            return SUMEE_PURPLE;
+            return TULBOX_PURPLE;
         case 'in_progress':
         case 'en_progreso':
-            return SUMEE_ORANGE;
+            return TULBOX_ORANGE;
         case 'completed':
-            return SUMEE_GREEN;
+            return TULBOX_GREEN;
         case 'cancelled':
             return '#EF4444';
         default:
@@ -337,7 +338,7 @@ export default function CalendarScreen() {
                             </View>
                             <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
                             <View style={styles.summaryItem}>
-                                <Ionicons name="cash-outline" size={20} color={SUMEE_GREEN} />
+                                <Ionicons name="cash-outline" size={20} color={TULBOX_GREEN} />
                                 <Text variant="body" weight="bold" style={styles.summaryValue}>
                                     ${weekSummary.totalSpent.toFixed(2)}
                                 </Text>
@@ -366,8 +367,8 @@ export default function CalendarScreen() {
                                     style={[
                                         styles.dayCard,
                                         {
-                                            backgroundColor: isSelected ? SUMEE_PURPLE : theme.card,
-                                            borderColor: isToday && !isSelected ? SUMEE_GREEN : theme.border,
+                                            backgroundColor: isSelected ? TULBOX_PURPLE : theme.card,
+                                            borderColor: isToday && !isSelected ? TULBOX_GREEN : theme.border,
                                             borderWidth: isToday && !isSelected ? 2 : 1,
                                         },
                                     ]}
@@ -405,7 +406,7 @@ export default function CalendarScreen() {
                                                 {
                                                     backgroundColor: isSelected
                                                         ? 'rgba(255,255,255,0.3)'
-                                                        : SUMEE_PURPLE + '20',
+                                                        : TULBOX_PURPLE + '20',
                                                 },
                                             ]}
                                         >
@@ -413,7 +414,7 @@ export default function CalendarScreen() {
                                                 variant="caption"
                                                 weight="bold"
                                                 style={{
-                                                    color: isSelected ? '#FFFFFF' : SUMEE_PURPLE,
+                                                    color: isSelected ? '#FFFFFF' : TULBOX_PURPLE,
                                                 }}
                                             >
                                                 {day.services}
@@ -443,7 +444,7 @@ export default function CalendarScreen() {
                             </View>
                             <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
                             <View style={styles.daySummaryItem}>
-                                <Text variant="body" weight="bold" color={SUMEE_GREEN}>
+                                <Text variant="body" weight="bold" color={TULBOX_GREEN}>
                                     ${daySummary.totalSpent.toFixed(2)}
                                 </Text>
                                 <Text variant="caption" color={theme.textSecondary}>
@@ -534,9 +535,9 @@ export default function CalendarScreen() {
                                                 </Text>
                                             </View>
                                             <View style={styles.serviceDetailItem}>
-                                                <Ionicons name="cash-outline" size={16} color={SUMEE_GREEN} />
-                                                <Text variant="body" weight="bold" color={SUMEE_GREEN}>
-                                                    ${(service.agreed_price || service.price || 0).toFixed(2)}
+                                                <Ionicons name="cash-outline" size={16} color={TULBOX_GREEN} />
+                                                <Text variant="body" weight="bold" color={TULBOX_GREEN}>
+                                                    {getLeadPriceFormatted(service)}
                                                 </Text>
                                             </View>
                                         </View>
@@ -546,7 +547,7 @@ export default function CalendarScreen() {
                     </View>
                 )}
 
-                <View style={{ height: 20 }} />
+                <View style={{ height: 100 }} />
             </ScrollView>
         </SafeAreaView>
     );
@@ -691,7 +692,7 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         paddingVertical: 8,
         paddingHorizontal: 12,
-        backgroundColor: SUMEE_PURPLE + '10',
+        backgroundColor: TULBOX_PURPLE + '10',
         borderRadius: 8,
         alignSelf: 'flex-start',
     },

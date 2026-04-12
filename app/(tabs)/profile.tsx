@@ -18,12 +18,14 @@ import { Text } from '@/components/Text';
 import { Badge } from '@/components/Badge';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 import { supabase } from '@/lib/supabase';
 import { openWhatsApp } from '@/utils/whatsapp';
 import { SupportModal } from '@/components/SupportModal';
 import { GuaranteeModal } from '@/components/GuaranteeModal';
 import { NotificationsModal } from '@/components/NotificationsModal';
+import { Skeleton } from '@/components/Skeleton';
+import { hapticFeedback } from '@/utils/haptics';
 import { Linking } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -50,6 +52,7 @@ export default function ProfileScreen() {
     const { user, profile, signOut } = useAuth();
     const router = useRouter();
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [showSupportModal, setShowSupportModal] = useState(false);
     const [showGuaranteeModal, setShowGuaranteeModal] = useState(false);
     const [showNotificationsModal, setShowNotificationsModal] = useState(false);
@@ -68,6 +71,7 @@ export default function ProfileScreen() {
 
     const loadProfileData = async () => {
         if (!user) return;
+        setLoading(true);
 
         try {
             // Cargar estadísticas
@@ -159,6 +163,7 @@ export default function ProfileScreen() {
         ];
 
         setBadges(clientBadges);
+        setLoading(false);
     };
 
     const onRefresh = async () => {
@@ -187,34 +192,76 @@ export default function ProfileScreen() {
             >
                 {/* Header con foto y nombre */}
                 <View style={[styles.header, { backgroundColor: theme.card }]}>
-                    <View style={styles.avatarContainer}>
-                        {avatarUrl ? (
-                            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-                        ) : (
-                            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.primary }]}>
-                                <Ionicons name="person" size={40} color="#FFFFFF" />
+                    <TouchableOpacity
+                        style={styles.menuButton}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                            hapticFeedback.light();
+                            setShowSupportModal(true);
+                        }}
+                    >
+                        <Ionicons name="reorder-three-outline" size={30} color={theme.text} />
+                    </TouchableOpacity>
+
+                    {loading ? (
+                        <>
+                            <Skeleton width={100} height={100} borderRadius={50} />
+                            <Skeleton width={150} height={24} style={{ marginTop: 16 }} />
+                            <Skeleton width={200} height={16} style={{ marginTop: 8 }} />
+                        </>
+                    ) : (
+                        <>
+                            <View style={styles.avatarContainer}>
+                                {avatarUrl ? (
+                                    <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                                ) : (
+                                    <View style={[styles.avatarPlaceholder, { backgroundColor: theme.primary }]}>
+                                        <Ionicons name="person" size={40} color="#FFFFFF" />
+                                    </View>
+                                )}
+                                <TouchableOpacity
+                                    style={[styles.editAvatarButton, { backgroundColor: theme.primary }]}
+                                    activeOpacity={0.7}
+                                    onPress={() => {
+                                        hapticFeedback.light();
+                                        router.push('/profile/edit');
+                                    }}
+                                >
+                                    <Ionicons name="camera" size={16} color="#FFFFFF" />
+                                </TouchableOpacity>
                             </View>
-                        )}
-                        <TouchableOpacity
-                            style={[styles.editAvatarButton, { backgroundColor: theme.primary }]}
-                            activeOpacity={0.7}
-                            onPress={() => router.push('/profile/edit')}
-                        >
-                            <Ionicons name="camera" size={16} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </View>
-                    <Text variant="h2" weight="bold" style={styles.name}>
-                        {displayName}
-                    </Text>
-                    <Text variant="body" color={theme.textSecondary} style={styles.email}>
-                        {displayEmail}
-                    </Text>
-                    <View style={styles.badgesRow}>
-                        <Badge variant="verified">Cliente Verificado</Badge>
-                        {stats.completed_services > 0 && (
-                            <Badge variant="guarantee">Cliente Activo</Badge>
-                        )}
-                    </View>
+                            <Text variant="h2" weight="bold" style={styles.name}>
+                                {displayName}
+                            </Text>
+                            <Text variant="body" color={theme.textSecondary} style={styles.email}>
+                                {displayEmail}
+                            </Text>
+                            <View style={styles.badgesRow}>
+                                <Badge variant="verified">Cliente Verificado</Badge>
+                                {stats.completed_services > 0 && (
+                                    <Badge variant="guarantee">Cliente Activo</Badge>
+                                )}
+                            </View>
+                        </>
+                    )}
+                </View>
+
+                {/* Acciones Rápidas */}
+                <View style={styles.quickActionsSection}>
+                    <TouchableOpacity
+                        style={[styles.quickActionButton, { backgroundColor: theme.surface }]}
+                        onPress={() => {
+                            hapticFeedback.selection();
+                            router.push('/(tabs)/projects');
+                        }}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.quickActionIcon, { backgroundColor: theme.primary + '15' }]}>
+                            <Ionicons name="clipboard-outline" size={24} color={theme.primary} />
+                        </View>
+                        <Text variant="body" weight="bold">Mis Solicitudes</Text>
+                        <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                    </TouchableOpacity>
                 </View>
 
                 {/* Estadísticas */}
@@ -223,53 +270,65 @@ export default function ProfileScreen() {
                         Estadísticas
                     </Text>
                     <View style={styles.statsGrid}>
-                        <Card variant="elevated" style={styles.statCard}>
-                            <View style={[styles.statIconContainer, { backgroundColor: theme.primary + '20' }]}>
-                                <Ionicons name="briefcase" size={24} color={theme.primary} />
-                            </View>
-                            <Text variant="h2" weight="bold" style={styles.statValue}>
-                                {stats.total_services}
-                            </Text>
-                            <Text variant="caption" color={theme.textSecondary}>
-                                Servicios
-                            </Text>
-                        </Card>
+                        {loading ? (
+                            [1, 2, 3, 4].map(i => (
+                                <View key={i} style={[styles.statCard, { backgroundColor: theme.card, padding: 16, borderRadius: 12, alignItems: 'center' }]}>
+                                    <Skeleton width={40} height={40} borderRadius={20} />
+                                    <Skeleton width={30} height={20} style={{ marginTop: 12 }} />
+                                    <Skeleton width={60} height={12} style={{ marginTop: 8 }} />
+                                </View>
+                            ))
+                        ) : (
+                            <>
+                                <Card variant="elevated" style={styles.statCard}>
+                                    <View style={[styles.statIconContainer, { backgroundColor: theme.primary + '20' }]}>
+                                        <Ionicons name="briefcase" size={24} color={theme.primary} />
+                                    </View>
+                                    <Text variant="h2" weight="bold" style={styles.statValue}>
+                                        {stats.total_services}
+                                    </Text>
+                                    <Text variant="caption" color={theme.textSecondary}>
+                                        Servicios
+                                    </Text>
+                                </Card>
 
-                        <Card variant="elevated" style={styles.statCard}>
-                            <View style={[styles.statIconContainer, { backgroundColor: theme.success + '20' }]}>
-                                <Ionicons name="checkmark-circle" size={24} color={theme.success} />
-                            </View>
-                            <Text variant="h2" weight="bold" style={styles.statValue}>
-                                {stats.completed_services}
-                            </Text>
-                            <Text variant="caption" color={theme.textSecondary}>
-                                Completados
-                            </Text>
-                        </Card>
+                                <Card variant="elevated" style={styles.statCard}>
+                                    <View style={[styles.statIconContainer, { backgroundColor: theme.success + '20' }]}>
+                                        <Ionicons name="checkmark-circle" size={24} color={theme.success} />
+                                    </View>
+                                    <Text variant="h2" weight="bold" style={styles.statValue}>
+                                        {stats.completed_services}
+                                    </Text>
+                                    <Text variant="caption" color={theme.textSecondary}>
+                                        Completados
+                                    </Text>
+                                </Card>
 
-                        <Card variant="elevated" style={styles.statCard}>
-                            <View style={[styles.statIconContainer, { backgroundColor: theme.warning + '20' }]}>
-                                <Ionicons name="time" size={24} color={theme.warning} />
-                            </View>
-                            <Text variant="h2" weight="bold" style={styles.statValue}>
-                                {stats.pending_services}
-                            </Text>
-                            <Text variant="caption" color={theme.textSecondary}>
-                                Pendientes
-                            </Text>
-                        </Card>
+                                <Card variant="elevated" style={styles.statCard}>
+                                    <View style={[styles.statIconContainer, { backgroundColor: theme.warning + '20' }]}>
+                                        <Ionicons name="time" size={24} color={theme.warning} />
+                                    </View>
+                                    <Text variant="h2" weight="bold" style={styles.statValue}>
+                                        {stats.pending_services}
+                                    </Text>
+                                    <Text variant="caption" color={theme.textSecondary}>
+                                        Pendientes
+                                    </Text>
+                                </Card>
 
-                        <Card variant="elevated" style={styles.statCard}>
-                            <View style={[styles.statIconContainer, { backgroundColor: SUMEE_COLORS.PURPLE + '20' }]}>
-                                <Ionicons name="star" size={24} color={SUMEE_COLORS.PURPLE} />
-                            </View>
-                            <Text variant="h2" weight="bold" style={styles.statValue}>
-                                {stats.average_rating_given > 0 ? stats.average_rating_given.toFixed(1) : '—'}
-                            </Text>
-                            <Text variant="caption" color={theme.textSecondary}>
-                                Calificación Promedio
-                            </Text>
-                        </Card>
+                                <Card variant="elevated" style={styles.statCard}>
+                                    <View style={[styles.statIconContainer, { backgroundColor: TULBOX_COLORS.PURPLE + '20' }]}>
+                                        <Ionicons name="star" size={24} color={TULBOX_COLORS.PURPLE} />
+                                    </View>
+                                    <Text variant="h2" weight="bold" style={styles.statValue}>
+                                        {stats.average_rating_given > 0 ? stats.average_rating_given.toFixed(1) : '—'}
+                                    </Text>
+                                    <Text variant="caption" color={theme.textSecondary}>
+                                        Calificación Promedio
+                                    </Text>
+                                </Card>
+                            </>
+                        )}
                     </View>
                 </View>
 
@@ -322,10 +381,13 @@ export default function ProfileScreen() {
                         Información Personal
                     </Text>
                     <Card variant="elevated" style={styles.infoCard}>
-                        <TouchableOpacity 
-                            style={styles.infoRow} 
+                        <TouchableOpacity
+                            style={styles.infoRow}
                             activeOpacity={0.7}
-                            onPress={() => router.push('/profile/edit')}
+                            onPress={() => {
+                                hapticFeedback.light();
+                                router.push('/profile/edit');
+                            }}
                         >
                             <View style={styles.infoIconContainer}>
                                 <Ionicons name="mail-outline" size={20} color={theme.textSecondary} />
@@ -343,10 +405,13 @@ export default function ProfileScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                        <TouchableOpacity 
-                            style={styles.infoRow} 
+                        <TouchableOpacity
+                            style={styles.infoRow}
                             activeOpacity={0.7}
-                            onPress={() => router.push('/profile/edit')}
+                            onPress={() => {
+                                hapticFeedback.light();
+                                router.push('/profile/edit');
+                            }}
                         >
                             <View style={styles.infoIconContainer}>
                                 <Ionicons name="call-outline" size={20} color={theme.textSecondary} />
@@ -364,10 +429,13 @@ export default function ProfileScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                        <TouchableOpacity 
-                            style={styles.infoRow} 
+                        <TouchableOpacity
+                            style={styles.infoRow}
                             activeOpacity={0.7}
-                            onPress={() => router.push('/profile/edit')}
+                            onPress={() => {
+                                hapticFeedback.light();
+                                router.push('/profile/edit');
+                            }}
                         >
                             <View style={styles.infoIconContainer}>
                                 <Ionicons name="location-outline" size={20} color={theme.textSecondary} />
@@ -392,7 +460,10 @@ export default function ProfileScreen() {
                             Direcciones Guardadas
                         </Text>
                         <TouchableOpacity
-                            onPress={() => router.push('/profile/addresses')}
+                            onPress={() => {
+                                hapticFeedback.light();
+                                router.push('/profile/addresses');
+                            }}
                             activeOpacity={0.7}
                         >
                             <Text variant="body" color={theme.primary} weight="medium">
@@ -403,7 +474,10 @@ export default function ProfileScreen() {
                     <Card variant="elevated" style={styles.addressesCard}>
                         <TouchableOpacity
                             style={styles.addressesRow}
-                            onPress={() => router.push('/profile/addresses')}
+                            onPress={() => {
+                                hapticFeedback.light();
+                                router.push('/profile/addresses');
+                            }}
                             activeOpacity={0.7}
                         >
                             <Ionicons name="location" size={24} color={theme.primary} />
@@ -426,10 +500,13 @@ export default function ProfileScreen() {
                         Configuración
                     </Text>
                     <Card variant="elevated" style={styles.settingsCard}>
-                        <TouchableOpacity 
-                            style={styles.settingsRow} 
+                        <TouchableOpacity
+                            style={styles.settingsRow}
                             activeOpacity={0.7}
-                            onPress={() => setShowNotificationsModal(true)}
+                            onPress={() => {
+                                hapticFeedback.light();
+                                setShowNotificationsModal(true);
+                            }}
                         >
                             <Ionicons name="notifications-outline" size={20} color={theme.text} />
                             <Text variant="body" style={styles.settingsText}>
@@ -440,13 +517,15 @@ export default function ProfileScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                        <TouchableOpacity 
-                            style={styles.settingsRow} 
+                        <TouchableOpacity
+                            style={styles.settingsRow}
                             activeOpacity={0.7}
                             onPress={() => {
-                                // TODO: Navegar a pantalla de privacidad cuando esté implementada
-                                // router.push('/profile/privacy');
-                                console.log('[Profile] Privacidad - Pendiente implementar');
+                                hapticFeedback.light();
+                                // Abrir política de privacidad en el navegador
+                                Linking.openURL('https://tulbox.pro/en/privacidad').catch((err) => {
+                                    console.error('[Profile] Error opening privacy:', err);
+                                });
                             }}
                         >
                             <Ionicons name="shield-checkmark-outline" size={20} color={theme.text} />
@@ -458,10 +537,13 @@ export default function ProfileScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                        <TouchableOpacity 
-                            style={styles.settingsRow} 
+                        <TouchableOpacity
+                            style={styles.settingsRow}
                             activeOpacity={0.7}
-                            onPress={() => setShowGuaranteeModal(true)}
+                            onPress={() => {
+                                hapticFeedback.light();
+                                setShowGuaranteeModal(true);
+                            }}
                         >
                             <Ionicons name="shield-checkmark" size={20} color={theme.text} />
                             <Text variant="body" style={styles.settingsText}>
@@ -472,10 +554,13 @@ export default function ProfileScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                        <TouchableOpacity 
-                            style={styles.settingsRow} 
+                        <TouchableOpacity
+                            style={styles.settingsRow}
                             activeOpacity={0.7}
-                            onPress={() => setShowSupportModal(true)}
+                            onPress={() => {
+                                hapticFeedback.light();
+                                setShowSupportModal(true);
+                            }}
                         >
                             <Ionicons name="help-circle-outline" size={20} color={theme.text} />
                             <Text variant="body" style={styles.settingsText}>
@@ -486,12 +571,13 @@ export default function ProfileScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                        <TouchableOpacity 
-                            style={styles.settingsRow} 
+                        <TouchableOpacity
+                            style={styles.settingsRow}
                             activeOpacity={0.7}
                             onPress={() => {
+                                hapticFeedback.light();
                                 // Abrir términos y condiciones en el navegador
-                                Linking.openURL('https://sumeeapp.com/terminos-y-condiciones').catch((err) => {
+                                Linking.openURL('https://tulbox.pro/en/terminos').catch((err) => {
                                     console.error('[Profile] Error opening terms:', err);
                                 });
                             }}
@@ -515,7 +601,7 @@ export default function ProfileScreen() {
                     />
                 </View>
 
-                <View style={{ height: 20 }} />
+                <View style={{ height: 100 }} />
             </ScrollView>
 
             {/* Modal de Ayuda y Soporte */}
@@ -524,7 +610,7 @@ export default function ProfileScreen() {
                 onClose={() => setShowSupportModal(false)}
             />
 
-            {/* Modal de Garantía Sumee */}
+            {/* Modal de Garantía TulBox */}
             <GuaranteeModal
                 visible={showGuaranteeModal}
                 onClose={() => setShowGuaranteeModal(false)}
@@ -545,12 +631,19 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingTop: 20,
+        paddingTop: 40,
         paddingBottom: 24,
         paddingHorizontal: 20,
         alignItems: 'center',
         borderBottomWidth: 1,
         borderBottomColor: '#E2E8F0',
+        position: 'relative',
+    },
+    menuButton: {
+        position: 'absolute',
+        top: 20,
+        right: 20,
+        padding: 8,
     },
     avatarContainer: {
         position: 'relative',
@@ -605,6 +698,29 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 12,
+    },
+    quickActionsSection: {
+        paddingHorizontal: 20,
+        marginTop: 20,
+    },
+    quickActionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 16,
+        gap: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
+    },
+    quickActionIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     statCard: {
         width: (width - 52) / 2,
@@ -718,12 +834,6 @@ const styles = StyleSheet.create({
     addressesSection: {
         paddingHorizontal: 20,
         marginBottom: 24,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
     },
     addressesCard: {
         padding: 0,

@@ -1,5 +1,11 @@
 import { supabase } from '@/lib/supabase';
+import {
+    DB_ROLE_VALUES_PROFESSIONAL,
+    isProfessionalListingRow,
+} from '@/constants/roles';
 import { resolveAvatarUrl } from '@/utils/avatar';
+import { validateUUID, validateCoordinates, withTimeout } from './validation';
+import { cache, CacheKeys } from './cache';
 
 /**
  * Professionals Service - Gestión de profesionales destacados
@@ -33,6 +39,7 @@ export interface FeaturedProfessional {
     antecedentes_no_penales_url?: string | null;
     numero_imss?: string | null;
     work_zones?: string[] | null;
+    is_online?: boolean; // ✅ Nuevo campo
 }
 
 export interface ProfessionalFilters {
@@ -62,9 +69,9 @@ function calculateDistance(
     const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos((lat1 * Math.PI) / 180) *
-            Math.cos((lat2 * Math.PI) / 180) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
 }
@@ -140,7 +147,7 @@ function calculateProfileCompleteness(professional: any): number {
  */
 function calculateProximityScore(distance: number | undefined): number {
     if (distance === undefined) return 20; // Score neutral si no hay distancia
-    
+
     if (distance <= 1) return 40;      // <1km = 40pts
     if (distance <= 5) return 35;       // 1-5km = 35pts
     if (distance <= 10) return 25;     // 5-10km = 25pts
@@ -171,16 +178,40 @@ function calculateExperienceScore(years: number | null | undefined): number {
 }
 
 /**
+ * Calcular score de estado online (0 o 20 puntos)
+ * ¡Gran impulso para los que están conectados ahora!
+ */
+function calculateOnlineScore(isOnline: boolean | undefined): number {
+    return isOnline ? 20 : 0;
+}
+
+/**
  * Calcular score híbrido para ordenamiento
  * Score = (Cercanía × 0.40) + (Completitud × 0.35) + (Calificación × 0.15) + (Experiencia × 0.10)
  */
 function calculateHybridScore(professional: FeaturedProfessional): number {
-    const proximity = calculateProximityScore(professional.distance);
-    const completeness = calculateCompletenessScore(professional.profile_completeness || 0);
-    const rating = calculateRatingScore(professional.calificacion_promedio || 0);
+    // Nuevos pesos ajustados para priorizar Online (Gran Impulso) + Calidad + Cercanía
+    // Total posible: ~110 puntos
+
+    // 1. ONLINE: 20 puntos base si está conectado (Esto los sube mucho en la lista)
+    const online = calculateOnlineScore(professional.is_online);
+
+    // 2. CERCANÍA: Ajustado a 30 puntos máx (antes 40)
+    // Se multiplica por 0.75 porque calculateProximityScore devuelve hasta 40
+    const proximity = calculateProximityScore(professional.distance) * 0.75;
+
+    // 3. COMPLETITUD: Ajustado a 30 puntos máx (antes 35)
+    // Se multiplica por un factor ~0.85
+    const completeness = calculateCompletenessScore(professional.profile_completeness || 0) * 0.85;
+
+    // 4. CALIFICACIÓN: Ajustado a 20 puntos máx (antes 15)
+    // Se multiplica por 1.33
+    const rating = calculateRatingScore(professional.calificacion_promedio || 0) * 1.33;
+
+    // 5. EXPERIENCIA: Se mantiene en 10 puntos máx
     const experience = calculateExperienceScore(professional.experience);
-    
-    return proximity + completeness + rating + experience;
+
+    return online + proximity + completeness + rating + experience;
 }
 
 /**
@@ -229,6 +260,7 @@ export async function getFeaturedProfessionals(
 ): Promise<FeaturedProfessional[]> {
     try {
         console.log('[ProfessionalsService] 🚀 Fetching featured professionals...');
+        const startTime = Date.now();
         console.log('[ProfessionalsService] 📍 User location:', { userLat, userLng });
         console.log('[ProfessionalsService] 🎯 Sort by:', sortBy);
 
@@ -237,52 +269,123 @@ export async function getFeaturedProfessionals(
             full_name,
             avatar_url,
             profession,
+            whatsapp,
             calificacion_promedio,
             ubicacion_lat,
             ubicacion_lng,
             areas_servicio,
             experience,
-            whatsapp,
             role,
-            user_type,
-            updated_at,
-            bio,
-            descripcion_perfil,
-            work_photos_urls,
-            portfolio,
-            certificaciones_urls,
-            antecedentes_no_penales_url,
-            numero_imss,
-            work_zones
+            user_type
         `;
 
-        // Query optimizada
-        const { data, error } = await supabase
+        // Diagnóstico: Intentar query EXACTA como el web
+        console.log('[ProfessionalsService] 📡 Enviando query a Supabase (Web Style)...');
+        
+        // ✅ MEJORADO: Query más flexible con múltiples variantes de role
+        // También excluir clientes explícitamente
+        let query = supabase
             .from('profiles')
             .select(minimalSelect)
-            .eq('role', 'profesional')
-            .not('profession', 'is', null)
-            .not('profession', 'eq', '')
-            .neq('user_type', 'client')
-            .limit(100); // Obtener más para ordenar después
+            .in('role', DB_ROLE_VALUES_PROFESSIONAL)
+            .neq('user_type', 'client') // ✅ Excluir clientes explícitamente
+            .not('profession', 'is', null) // ✅ Solo profesionales con profesión
+            .not('profession', 'eq', '') // ✅ Excluir profesiones vacías
+            .limit(30);
+
+        const { data, error } = await query;
 
         if (error) {
-            console.error('[ProfessionalsService] ❌ Error:', error);
+            console.error('[ProfessionalsService] ❌ Error en query:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint
+            });
+            
+            // ✅ FALLBACK: Intentar query más simple sin filtros de role
+            console.log('[ProfessionalsService] 🔄 Intentando fallback sin filtro de role...');
+            const { data: fallbackData, error: fallbackError } = await supabase
+                .from('profiles')
+                .select(minimalSelect)
+                .limit(50);
+            
+            if (fallbackError) {
+                console.error('[ProfessionalsService] ❌ Fallback también falló:', fallbackError);
+                return [];
+            }
+            
+            if (fallbackData && fallbackData.length > 0) {
+                console.log(`[ProfessionalsService] ✅ Fallback exitoso: ${fallbackData.length} registros`);
+                // Filtrar manualmente después
+                // ✅ MEJORADO: Filtro que acepta múltiples variantes de role y user_type
+                const filtered = fallbackData.filter((p: any) =>
+                    isProfessionalListingRow(p)
+                );
+                console.log(`[ProfessionalsService] 🔍 Después de filtrar: ${filtered.length} profesionales`);
+                
+                if (filtered.length === 0) {
+                    console.warn('[ProfessionalsService] ⚠️ No se encontraron profesionales después del fallback');
+                    return [];
+                }
+                
+                // Procesar datos del fallback
+                const professionals = processProfessionalsData(filtered, userLat, userLng, limit, sortBy);
+                const loadTime = Date.now() - startTime;
+                console.log(`[ProfessionalsService] 🎯 Processed ${professionals.length} professionals from fallback (${loadTime}ms)`);
+                return professionals;
+            }
+            
             return [];
         }
 
         if (!data || data.length === 0) {
-            console.warn('[ProfessionalsService] ⚠️ No professionals found');
+            console.warn('[ProfessionalsService] ⚠️ No se encontraron profesionales con el filtro actual');
+            console.log('[ProfessionalsService] 🔍 Intentando query sin filtros para diagnóstico...');
+            
+            // ✅ DIAGNÓSTICO: Query sin filtros para ver qué hay
+            const { data: allData } = await supabase
+                .from('profiles')
+                .select('user_id, full_name, role, user_type, profession')
+                .limit(10);
+            
+            console.log('[ProfessionalsService] 📊 Datos de diagnóstico (primeros 10):', allData?.map((p: any) => ({
+                user_id: p.user_id,
+                full_name: p.full_name,
+                role: p.role,
+                user_type: p.user_type,
+                profession: p.profession
+            })));
+            
             return [];
         }
 
-        console.log(`[ProfessionalsService] ✅ Found ${data.length} professionals`);
+        console.log(`[ProfessionalsService] ✅ ${data.length} profesionales recibidos de Supabase`);
+
+        console.log('[ProfessionalsService] 📊 Raw data received:', {
+            count: data?.length || 0,
+            sample: data?.slice(0, 3)?.map((p: any) => ({
+                user_id: p.user_id,
+                full_name: p.full_name,
+                profession: p.profession,
+                role: p.role,
+                user_type: p.user_type,
+            })),
+        });
+
+        if (!data || data.length === 0) {
+            console.warn('[ProfessionalsService] ⚠️ No professionals found in database');
+            return [];
+        }
+
+        console.log(`[ProfessionalsService] ✅ Found ${data.length} professionals from query`);
 
         // Procesar y ordenar
         const professionals = processProfessionalsData(data, userLat, userLng, limit, sortBy);
-        
-        console.log(`[ProfessionalsService] 🎯 Processed ${professionals.length} professionals`);
-        
+
+        const loadTime = Date.now() - startTime;
+        console.log(`[ProfessionalsService] 🎯 Processed ${professionals.length} professionals (${loadTime}ms)`);
+
         return professionals;
     } catch (error) {
         console.error('[ProfessionalsService] 💥 Exception:', error);
@@ -323,7 +426,7 @@ export async function getAllProfessionals(
                 role,
                 user_type,
                 updated_at,
-                bio,
+            bio,
                 descripcion_perfil,
                 work_photos_urls,
                 portfolio,
@@ -332,9 +435,7 @@ export async function getAllProfessionals(
                 numero_imss,
                 work_zones
             `)
-            .eq('role', 'profesional')
-            .not('profession', 'is', null)
-            .not('profession', 'eq', '')
+            .in('role', DB_ROLE_VALUES_PROFESSIONAL)
             .neq('user_type', 'client');
 
         // Aplicar filtros
@@ -365,13 +466,13 @@ export async function getAllProfessionals(
 
         // Aplicar filtros adicionales en memoria
         if (filters?.maxDistance && userLat && userLng) {
-            professionals = professionals.filter(p => 
+            professionals = professionals.filter(p =>
                 p.distance !== undefined && p.distance <= filters.maxDistance!
             );
         }
 
         if (filters?.onlyComplete) {
-            professionals = professionals.filter(p => 
+            professionals = professionals.filter(p =>
                 (p.profile_completeness || 0) >= 80
             );
         }
@@ -384,7 +485,7 @@ export async function getAllProfessionals(
         professionals = professionals.slice(0, limit);
 
         console.log(`[ProfessionalsService] 🎯 Final result: ${professionals.length} professionals`);
-        
+
         return professionals;
     } catch (error) {
         console.error('[ProfessionalsService] 💥 Exception:', error);
@@ -402,20 +503,46 @@ function processProfessionalsData(
     limit: number = 10,
     sortBy: SortOption = 'hybrid'
 ): FeaturedProfessional[] {
-    // Filtrar solo profesionales
+    console.log(`[ProfessionalsService] 🔍 Processing ${data.length} profiles...`);
+    
+    // ✅ MEJORADO: Filtrar solo profesionales (más flexible)
     const onlyProfessionals = data.filter((prof: any) => {
-        const isProfessional = prof.role === 'profesional' || prof.role === 'professional';
-        const isNotClient = prof.user_type !== 'client' && prof.role !== 'client';
-        const hasProfession = prof.profession && prof.profession.trim() !== '';
-        
-        return isProfessional && isNotClient && hasProfession;
+        const isProfessional = isProfessionalListingRow(prof);
+
+        if (!isProfessional) {
+            console.log(`[ProfessionalsService] ⚠️ Filtered out:`, {
+                user_id: prof.user_id,
+                full_name: prof.full_name,
+                role: prof.role,
+                user_type: prof.user_type,
+                profession: prof.profession,
+                reason: 'not a professional listing row',
+            });
+        }
+
+        return isProfessional;
     });
 
     console.log(`[ProfessionalsService] 🔍 Filtered: ${data.length} -> ${onlyProfessionals.length} professionals`);
+    
+    if (onlyProfessionals.length === 0) {
+        console.warn('[ProfessionalsService] ⚠️ No professionals after filtering!');
+        console.log('[ProfessionalsService] 📊 Sample of filtered data:', data.slice(0, 3).map((p: any) => ({
+            user_id: p.user_id,
+            full_name: p.full_name,
+            role: p.role,
+            user_type: p.user_type,
+            profession: p.profession,
+        })));
+    }
 
     // Calcular distancia, completitud y scores
     const professionalsWithScore: FeaturedProfessional[] = onlyProfessionals.map((prof: any) => {
         let distance: number | undefined;
+        // El join puede no venir si falló RLS o no se incluyó
+        const stats = (prof.professional_stats && Array.isArray(prof.professional_stats))
+            ? prof.professional_stats[0]
+            : {};
 
         // Calcular distancia
         if (userLat && userLng && prof.ubicacion_lat && prof.ubicacion_lng) {
@@ -441,13 +568,13 @@ function processProfessionalsData(
             full_name: prof.full_name || 'Profesional',
             avatar_url: resolvedAvatarUrl,
             updated_at: prof.updated_at,
-            profession: prof.profession,
-            calificacion_promedio: prof.calificacion_promedio || 0,
-            review_count: 0, // No existe en BD
+            profession: prof.profession || stats.specialty || 'Profesional',
+            calificacion_promedio: prof.calificacion_promedio || stats.average_rating || 5, // ✅ DEFAULT 5 ESTRELLAS
+            review_count: stats.jobs_completed_count || 0,
             distance,
             areas_servicio: prof.areas_servicio || [],
             experience: prof.experience || 0,
-            disponibilidad: null, // Columna no existe
+            disponibilidad: null, // Columna no existe en profiles
             whatsapp: prof.whatsapp,
             verified: Boolean(prof.numero_imss || prof.certificaciones_urls?.length),
             profile_completeness: profileCompleteness,
@@ -460,11 +587,12 @@ function processProfessionalsData(
             antecedentes_no_penales_url: prof.antecedentes_no_penales_url,
             numero_imss: prof.numero_imss,
             work_zones: prof.work_zones,
+            is_online: stats.is_online ?? false,
         };
 
         // Calcular scores
         professional.relevance_score = calculateRelevanceScore(professional, userLat, userLng);
-        
+
         // Calcular score híbrido (nuevo)
         const hybridScore = calculateHybridScore(professional);
         (professional as any).hybrid_score = hybridScore;
@@ -474,91 +602,91 @@ function processProfessionalsData(
 
     // Ordenar según sortBy
     let sorted: FeaturedProfessional[];
-    
+
     switch (sortBy) {
         case 'hybrid':
             // Ordenar por score híbrido (descendente), luego por distancia (ascendente)
             sorted = professionalsWithScore.sort((a, b) => {
                 const scoreA = (a as any).hybrid_score || 0;
                 const scoreB = (b as any).hybrid_score || 0;
-                
+
                 if (Math.abs(scoreA - scoreB) < 0.01) {
                     // Desempate por distancia
                     const distA = a.distance ?? Infinity;
                     const distB = b.distance ?? Infinity;
                     return distA - distB;
                 }
-                
+
                 return scoreB - scoreA;
             });
             break;
-            
+
         case 'distance':
             // Ordenar por distancia (ascendente), luego por completitud (descendente)
             sorted = professionalsWithScore.sort((a, b) => {
                 const distA = a.distance ?? Infinity;
                 const distB = b.distance ?? Infinity;
-                
+
                 if (Math.abs(distA - distB) < 0.1) {
                     // Desempate por completitud
                     const compA = a.profile_completeness || 0;
                     const compB = b.profile_completeness || 0;
                     return compB - compA;
                 }
-                
+
                 return distA - distB;
             });
             break;
-            
+
         case 'completeness':
             // Ordenar por completitud (descendente), luego por distancia (ascendente)
             sorted = professionalsWithScore.sort((a, b) => {
                 const compA = a.profile_completeness || 0;
                 const compB = b.profile_completeness || 0;
-                
+
                 if (compA === compB) {
                     // Desempate por distancia
                     const distA = a.distance ?? Infinity;
                     const distB = b.distance ?? Infinity;
                     return distA - distB;
                 }
-                
+
                 return compB - compA;
             });
             break;
-            
+
         case 'rating':
             // Ordenar por calificación (descendente), luego por distancia (ascendente)
             sorted = professionalsWithScore.sort((a, b) => {
                 const ratingA = a.calificacion_promedio || 0;
                 const ratingB = b.calificacion_promedio || 0;
-                
+
                 if (ratingA === ratingB) {
                     const distA = a.distance ?? Infinity;
                     const distB = b.distance ?? Infinity;
                     return distA - distB;
                 }
-                
+
                 return ratingB - ratingA;
             });
             break;
-            
+
         case 'experience':
             // Ordenar por experiencia (descendente), luego por distancia (ascendente)
             sorted = professionalsWithScore.sort((a, b) => {
                 const expA = a.experience || 0;
                 const expB = b.experience || 0;
-                
+
                 if (expA === expB) {
                     const distA = a.distance ?? Infinity;
                     const distB = b.distance ?? Infinity;
                     return distA - distB;
                 }
-                
+
                 return expB - expA;
             });
             break;
-            
+
         default:
             sorted = professionalsWithScore;
     }
@@ -579,8 +707,8 @@ export async function searchProfessionals(
     try {
         let supabaseQuery = supabase
             .from('profiles')
-            .select('*')
-            .eq('role', 'profesional')
+            .select('*, professional_stats(is_online)')
+            .in('role', DB_ROLE_VALUES_PROFESSIONAL)
             .neq('user_type', 'client')
             .or(`full_name.ilike.%${query}%,profession.ilike.%${query}%`);
 
@@ -605,7 +733,7 @@ export function formatDistance(distance?: number): string {
     if (distance === undefined || distance === null) {
         return 'Distancia no disponible';
     }
-    
+
     if (distance < 1) {
         return `${Math.round(distance * 1000)}m`;
     } else if (distance < 10) {

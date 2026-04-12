@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     StyleSheet,
@@ -20,6 +20,9 @@ import { supabase } from '@/lib/supabase';
 import { SmartLocationService } from '@/services/SmartLocationService';
 import { SmartServiceRequestButton } from '@/components/SmartServiceRequestButton';
 import { useServiceRequestValidation } from '@/hooks/useServiceRequestValidation';
+import { PaymentPreferenceService, PaymentMethod } from '@/services/paymentPreferences';
+import { PaymentMethodSelector } from '@/components/PaymentMethodSelector';
+import { UniversalMap } from '@/components/UniversalMap';
 
 export default function ServiceConfirmationScreen() {
     const { theme } = useTheme();
@@ -35,10 +38,14 @@ export default function ServiceConfirmationScreen() {
     const [loading, setLoading] = useState(false);
     const [quote, setQuote] = useState<ServiceQuote | null>(null);
     const [service, setService] = useState<any>(null);
-    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'pending'>('pending');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | 'pending'>('pending');
     const [locationLoading, setLocationLoading] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [locationInfo, setLocationInfo] = useState<{ address: string; source: string } | null>(null);
+
+    // Refs para evitar loops infinitos
+    const quoteDataParsed = useRef(false);
+    const serviceLoaded = useRef<string | null>(null);
 
     // Validación
     const validation = useServiceRequestValidation({
@@ -48,34 +55,110 @@ export default function ServiceConfirmationScreen() {
         selectedDate: params.selectedDate,
     });
 
+    // Cargar ubicación al inicio
     useEffect(() => {
-        if (params.quoteData) {
+        if (user) {
+            initLocation();
+        }
+    }, [user]);
+
+    const initLocation = async () => {
+        if (!user) return;
+
+        setLocationLoading(true);
+        try {
+            const locationResult = await SmartLocationService.getAndSaveLocation(user.id);
+            if (locationResult && locationResult.location) {
+                const address = locationResult.address ||
+                    await SmartLocationService.reverseGeocode(
+                        locationResult.location.latitude,
+                        locationResult.location.longitude
+                    ) ||
+                    SmartLocationService.formatLocation(locationResult.location);
+
+                setLocationInfo({
+                    address,
+                    source: locationResult.source === 'gps' ? 'GPS' :
+                        locationResult.source === 'saved' ? 'Guardada' : 'Por defecto',
+                });
+
+                // Actualizar las coordenadas en el quote para el mapa
+                setQuote(prev => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        form_data: {
+                            ...prev.form_data,
+                            lat: locationResult.location.latitude.toString(),
+                            lng: locationResult.location.longitude.toString(),
+                        }
+                    };
+                });
+            }
+        } catch (error) {
+            console.error('[Confirm] Error getting initial location:', error);
+        } finally {
+            setLocationLoading(false);
+        }
+    };
+
+    // Parsear quoteData solo una vez
+    useEffect(() => {
+        if (params.quoteData && !quoteDataParsed.current) {
             try {
                 const parsedQuote = JSON.parse(params.quoteData);
                 setQuote(parsedQuote);
+                quoteDataParsed.current = true;
             } catch (error) {
                 console.error('[Confirm] Error parsing quote:', error);
             }
         }
+    }, [params.quoteData]);
 
-        loadService();
-    }, [params]);
+    // Cargar servicio solo una vez cuando cambia serviceId
+    useEffect(() => {
+        const sid = Array.isArray(params.serviceId) ? params.serviceId[0] : params.serviceId;
+        if (sid && serviceLoaded.current !== sid) {
+            loadService();
+            serviceLoaded.current = sid;
+        }
+    }, [params.serviceId]);
+
+    const handlePaymentMethodChange = (method: PaymentMethod) => {
+        setPaymentMethod(method);
+    };
 
     const loadService = async () => {
-        if (!params.serviceId) return;
+        const sid = Array.isArray(params.serviceId) ? params.serviceId[0] : params.serviceId;
+        if (!sid) return;
 
         try {
             const { data, error } = await supabase
                 .from('service_catalog')
                 .select('*')
-                .eq('id', params.serviceId)
+                .eq('id', sid)
                 .single();
 
             if (error) throw error;
-            setService(data);
+
+            // Solo actualizar si el servicio realmente cambió
+            setService((prevService: any) => {
+                if (prevService?.id === data?.id) {
+                    return prevService; // No actualizar si es el mismo
+                }
+                return data;
+            });
         } catch (error) {
             console.error('[Confirm] Error loading service:', error);
         }
+    };
+
+    /** Misma lógica que en useServiceRequestValidation: fecha en query o en la cotización. */
+    const resolveAppointmentDateString = (): string => {
+        const p = params.selectedDate;
+        const fromParam = (Array.isArray(p) ? p[0] : p)?.toString().trim() || '';
+        const fromQuote = quote?.form_data?.selected_date?.toString().trim() || '';
+        return fromParam || fromQuote;
     };
 
     const handleConfirm = async () => {
@@ -94,9 +177,22 @@ export default function ServiceConfirmationScreen() {
         setLocationError(null);
 
         try {
-            // Obtener ubicación real con fallbacks inteligentes
-            console.log('[Confirm] Obteniendo ubicación real...');
-            const locationResult = await SmartLocationService.getAndSaveLocation(user.id);
+            // Usar ubicación ya cargada si existe, o cargarla si no
+            let locationResult;
+            if (locationInfo && quote?.form_data.lat && quote?.form_data.lng) {
+                locationResult = {
+                    location: {
+                        latitude: parseFloat(quote.form_data.lat),
+                        longitude: parseFloat(quote.form_data.lng),
+                    },
+                    address: locationInfo.address,
+                    source: locationInfo.source === 'GPS' ? 'gps' : 'saved',
+                    accuracy: 10,
+                };
+            } else {
+                console.log('[Confirm] Obteniendo ubicación real...');
+                locationResult = await SmartLocationService.getAndSaveLocation(user.id);
+            }
 
             if (!locationResult || !locationResult.location) {
                 throw new Error('No se pudo obtener la ubicación');
@@ -119,8 +215,8 @@ export default function ServiceConfirmationScreen() {
 
             setLocationInfo({
                 address,
-                source: locationResult.source === 'gps' ? 'GPS' : 
-                        locationResult.source === 'saved' ? 'Guardada' : 'Por defecto',
+                source: locationResult.source === 'gps' ? 'GPS' :
+                    locationResult.source === 'saved' ? 'Guardada' : 'Por defecto',
             });
 
             const location = {
@@ -135,16 +231,53 @@ export default function ServiceConfirmationScreen() {
                 address: address,
             });
 
+            // Parsear fecha (params o quote.form_data; evita lead bloqueado si Expo omitió el query param)
+            let appointmentDate: Date | undefined = undefined;
+            const dateStr = resolveAppointmentDateString();
+            if (dateStr) {
+                try {
+                    appointmentDate = new Date(dateStr);
+                    if (!appointmentDate || isNaN(appointmentDate.getTime())) {
+                        console.warn('[Confirm] Invalid date format, ignoring appointment:', dateStr);
+                        appointmentDate = undefined;
+                    } else {
+                        console.log('[Confirm] Appointment date parsed:', {
+                            original: dateStr,
+                            parsed: appointmentDate.toISOString(),
+                        });
+                    }
+                } catch (error) {
+                    console.error('[Confirm] Error parsing appointment date:', error);
+                    appointmentDate = undefined;
+                }
+            }
+
+            console.log('[Confirm] Creating lead with:', {
+                userId: user.id,
+                serviceId: service.id,
+                hasQuote: !!quote,
+                hasLocation: !!location,
+                hasAppointment: !!appointmentDate,
+                appointmentDate: appointmentDate ? appointmentDate.toISOString() : undefined,
+            });
+
+            // El método de pago ya se guarda automáticamente en PaymentMethodSelector
+            // No es necesario guardarlo aquí nuevamente
+
             // Crear lead con cotización
             const result = await QuoteService.createQuoteAndLead(
                 user.id,
                 service.id,
                 quote,
-                params.selectedDate ? new Date(params.selectedDate) : undefined,
+                appointmentDate,
                 location
             );
 
-            console.log('[Confirm] ✅ Solicitud creada exitosamente:', result.lead.id);
+            console.log('[Confirm] ✅ Solicitud creada exitosamente:', {
+                leadId: result.lead.id,
+                status: result.lead.status,
+                servicio: result.lead.servicio_solicitado,
+            });
 
             Alert.alert(
                 '¡Solicitud Creada!',
@@ -159,10 +292,36 @@ export default function ServiceConfirmationScreen() {
                 ]
             );
         } catch (error: any) {
-            console.error('[Confirm] Error confirming service:', error);
-            const errorMessage = error.message || 'No se pudo crear la solicitud';
+            console.error('[Confirm] ❌ Error confirming service:', {
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code,
+                fullError: error,
+            });
+
+            // Mensaje de error más descriptivo
+            let errorMessage = 'No se pudo crear la solicitud';
+            if (error.message) {
+                errorMessage = error.message;
+                // Traducir errores comunes de PostgreSQL
+                if (error.code === '22007') {
+                    errorMessage = 'Error en el formato de fecha. Por favor intenta de nuevo.';
+                } else if (error.code === '23502') {
+                    errorMessage = 'Faltan campos requeridos. Por favor completa todos los datos.';
+                } else if (error.code === '23505') {
+                    errorMessage = 'Ya existe una solicitud similar. Por favor verifica tus solicitudes.';
+                } else if (error.code === '42501') {
+                    errorMessage = 'No tienes permisos para crear esta solicitud.';
+                }
+            }
+
             setLocationError(errorMessage);
-            Alert.alert('Error', errorMessage);
+            Alert.alert(
+                'Error al crear solicitud',
+                errorMessage,
+                [{ text: 'OK' }]
+            );
         } finally {
             setLoading(false);
             setLocationLoading(false);
@@ -274,14 +433,7 @@ export default function ServiceConfirmationScreen() {
                                 ${quote.total.toFixed(2)}
                             </Text>
                         </View>
-                        <View style={styles.paymentRow}>
-                            <Text variant="body" color={theme.textSecondary}>
-                                Descuentos
-                            </Text>
-                            <Text variant="body" weight="bold" color={theme.success}>
-                                -${quote.discounts.reduce((sum, d) => sum + d.amount, 0).toFixed(2)}
-                            </Text>
-                        </View>
+                        {/* Descuentos eliminados - precio transparente */}
                         <View style={[styles.totalRow, { borderTopColor: theme.border }]}>
                             <Text variant="h3" weight="bold">
                                 Total más IVA
@@ -293,56 +445,17 @@ export default function ServiceConfirmationScreen() {
                     </Card>
                 </View>
 
-                {/* Método de Pago */}
+                {/* Método de Pago - Componente Reutilizable */}
                 <View style={styles.section}>
-                    <Text variant="h3" weight="bold" style={styles.sectionTitle}>
-                        Método de pago
-                    </Text>
-                    <Card variant="elevated" style={styles.paymentMethodCard}>
-                        <TouchableOpacity
-                            style={[
-                                styles.paymentMethodOption,
-                                paymentMethod === 'cash' && { backgroundColor: theme.primary + '20' },
-                            ]}
-                            onPress={() => setPaymentMethod('cash')}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="cash"
-                                size={24}
-                                color={paymentMethod === 'cash' ? theme.primary : theme.textSecondary}
-                            />
-                            <Text variant="body" weight={paymentMethod === 'cash' ? 'bold' : 'normal'}>
-                                Efectivo
-                            </Text>
-                            {paymentMethod === 'cash' && (
-                                <Ionicons name="checkmark-circle" size={24} color={theme.primary} />
-                            )}
-                        </TouchableOpacity>
-
-                        <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-                        <TouchableOpacity
-                            style={[
-                                styles.paymentMethodOption,
-                                paymentMethod === 'card' && { backgroundColor: theme.primary + '20' },
-                            ]}
-                            onPress={() => setPaymentMethod('card')}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="card"
-                                size={24}
-                                color={paymentMethod === 'card' ? theme.primary : theme.textSecondary}
-                            />
-                            <Text variant="body" weight={paymentMethod === 'card' ? 'bold' : 'normal'}>
-                                Tarjeta de crédito
-                            </Text>
-                            {paymentMethod === 'card' && (
-                                <Ionicons name="checkmark-circle" size={24} color={theme.primary} />
-                            )}
-                        </TouchableOpacity>
-                    </Card>
+                    {quote && (
+                        <PaymentMethodSelector
+                            servicePrice={quote.total_with_tax}
+                            isUrgent={quote.immediate_service_fee > 0}
+                            onMethodChange={handlePaymentMethodChange}
+                            initialMethod={paymentMethod}
+                            showSuggestions={true}
+                        />
+                    )}
                 </View>
 
                 {/* Información de Ubicación */}
@@ -361,6 +474,22 @@ export default function ServiceConfirmationScreen() {
                             <Text variant="caption" color={theme.textSecondary} style={styles.locationSource}>
                                 Fuente: {locationInfo.source}
                             </Text>
+
+                            {quote?.form_data?.lat && quote?.form_data?.lng && (
+                                <UniversalMap
+                                    latitude={parseFloat(quote.form_data.lat)}
+                                    longitude={parseFloat(quote.form_data.lng)}
+                                    zoom={16}
+                                    markers={[{
+                                        id: 'preview',
+                                        latitude: parseFloat(quote.form_data.lat),
+                                        longitude: parseFloat(quote.form_data.lng),
+                                        type: 'job',
+                                        servicio: service?.service_name,
+                                    }]}
+                                    style={styles.map}
+                                />
+                            )}
                         </Card>
                     </View>
                 )}
@@ -442,6 +571,37 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         gap: 12,
+        borderRadius: 12,
+        marginHorizontal: 4,
+        marginVertical: 2,
+    },
+    paymentIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F3F4F6',
+    },
+    paymentTextContainer: {
+        flex: 1,
+        marginLeft: 4,
+    },
+    paymentInfoCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 12,
+        gap: 8,
+    },
+    paymentInfoText: {
+        flex: 1,
+        marginLeft: 4,
+    },
+    sectionSubtitle: {
+        marginBottom: 12,
+        fontSize: 13,
     },
     confirmSection: {
         padding: 20,
@@ -465,6 +625,12 @@ const styles = StyleSheet.create({
     },
     locationSource: {
         fontSize: 12,
+    },
+    map: {
+        height: 180,
+        width: '100%',
+        borderRadius: 12,
+        marginTop: 12,
     },
 });
 

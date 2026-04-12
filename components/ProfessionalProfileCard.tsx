@@ -18,7 +18,7 @@ import { Card } from './Card';
 import { Badge } from './Badge';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 import { supabase } from '@/lib/supabase';
 import { resolveAvatarUrl } from '@/utils/avatar';
 import { openWhatsApp } from '@/utils/whatsapp';
@@ -40,13 +40,13 @@ interface ProfessionalData {
     review_count?: number;
     areas_servicio?: string[];
     verified?: boolean;
-    
+
     // Stats data
     jobs_completed_count?: number;
     total_points?: number;
     current_level_id?: number;
     expediente_status?: string;
-    
+
     // Badges (simplified)
     top_badges?: Array<{
         id: string;
@@ -56,10 +56,10 @@ interface ProfessionalData {
     }>;
 }
 
-export function ProfessionalProfileCard({ 
-    professionalId, 
+export function ProfessionalProfileCard({
+    professionalId,
     leadId,
-    onPress 
+    onPress
 }: ProfessionalProfileCardProps) {
     const { theme } = useTheme();
     const router = useRouter();
@@ -107,7 +107,7 @@ export function ProfessionalProfileCard({
                 `)
                 .eq('user_id', professionalId)
                 .single();
-            
+
             profileData = data;
 
             if (profileError) {
@@ -117,7 +117,7 @@ export function ProfessionalProfileCard({
                 console.error('[ProfessionalProfileCard] Professional ID:', professionalId);
                 console.error('[ProfessionalProfileCard] Error details:', profileError.details);
                 console.error('[ProfessionalProfileCard] Error hint:', profileError.hint);
-                
+
                 // Si es un error de "no encontrado", intentar sin .single() para ver si hay datos
                 if (profileError.code === 'PGRST116') {
                     console.log('[ProfessionalProfileCard] Trying without .single()...');
@@ -126,7 +126,7 @@ export function ProfessionalProfileCard({
                         .select('*')
                         .eq('user_id', professionalId)
                         .limit(1);
-                    
+
                     if (!altError && altData && altData.length > 0) {
                         console.log('[ProfessionalProfileCard] ✅ Found profile with alternative query:', altData[0].full_name);
                         // Usar los datos encontrados
@@ -159,7 +159,7 @@ export function ProfessionalProfileCard({
             if (!profileData) {
                 console.warn('[ProfessionalProfileCard] ⚠️ No profile data returned');
                 console.warn('[ProfessionalProfileCard] Professional ID searched:', professionalId);
-                
+
                 // Intentar buscar por user_type también
                 console.log('[ProfessionalProfileCard] Trying alternative search...');
                 const { data: altData, error: altError } = await supabase
@@ -167,7 +167,7 @@ export function ProfessionalProfileCard({
                     .select('*')
                     .eq('user_id', professionalId)
                     .maybeSingle();
-                
+
                 if (!altError && altData) {
                     console.log('[ProfessionalProfileCard] ✅ Found with maybeSingle():', altData.full_name);
                     profileData = altData;
@@ -216,7 +216,7 @@ export function ProfessionalProfileCard({
                     .eq('user_id', professionalId)
                     .order('unlocked_at', { ascending: false })
                     .limit(3);
-                
+
                 if (!error && data) {
                     badgesData = data;
                 }
@@ -230,21 +230,21 @@ export function ProfessionalProfileCard({
                 if (statsData?.jobs_completed_count && statsData.jobs_completed_count >= 10) {
                     badgesData.push({ badge_id: 'jobs_10', unlocked_at: new Date().toISOString() });
                 }
-                if (statsData?.average_rating && statsData.average_rating >= 4.5) {
+                if (profileData?.calificacion_promedio && profileData.calificacion_promedio >= 4.5) {
                     badgesData.push({ badge_id: 'rating_45', unlocked_at: new Date().toISOString() });
                 }
             }
 
             const professionalData: ProfessionalData = {
-                full_name: profileData?.full_name || 'Profesional Sumee',
+                full_name: profileData?.full_name || 'Profesional TulBox',
                 profession: profileData?.profession,
                 avatar_url: profileData?.avatar_url,
                 whatsapp: profileData?.whatsapp || profileData?.phone,
                 phone: profileData?.phone,
                 calificacion_promedio: profileData?.calificacion_promedio || 0,
                 review_count: statsData?.review_count || 0,
-                areas_servicio: Array.isArray(profileData?.areas_servicio) 
-                    ? profileData.areas_servicio 
+                areas_servicio: Array.isArray(profileData?.areas_servicio)
+                    ? profileData.areas_servicio
                     : [],
                 verified: false, // Campo no existe en la BD, usar false por defecto
                 jobs_completed_count: statsData?.jobs_completed_count || 0,
@@ -265,7 +265,7 @@ export function ProfessionalProfileCard({
                         'profile_perfect': { name: 'Perfil de Hierro', icon: '👤', level: 'bronze' },
                         'super_pro': { name: 'Super PRO', icon: '🛡️', level: 'diamond' },
                     };
-                    
+
                     const badgeInfo = badgeMap[b.badge_id] || { name: 'Logro', icon: '⭐', level: 'bronze' };
                     return {
                         id: b.badge_id,
@@ -392,11 +392,11 @@ export function ProfessionalProfileCard({
                 <View style={styles.header}>
                     <View style={styles.photoContainer}>
                         {professional.avatar_url ? (
-                            <Image 
-                                source={{ 
+                            <Image
+                                source={{
                                     uri: resolveAvatarUrl(professional.avatar_url),
                                     cache: 'reload'
-                                }} 
+                                }}
                                 style={styles.photo}
                                 resizeMode="cover"
                                 onError={() => {
@@ -408,7 +408,7 @@ export function ProfessionalProfileCard({
                                 <Ionicons name="person" size={48} color={theme.primary || '#820AD1'} />
                             </View>
                         )}
-                        {professional.verified && (
+                        {!!professional.verified && (
                             <View style={[styles.verifiedBadge, { backgroundColor: '#3B82F6' }]}>
                                 <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                             </View>
@@ -421,7 +421,7 @@ export function ProfessionalProfileCard({
                                 {professional.full_name}
                             </Text>
                             {professional.expediente_status === 'approved' && (
-                                <View style={[styles.expedienteBadge, { backgroundColor: SUMEE_COLORS.GREEN }]}>
+                                <View style={[styles.expedienteBadge, { backgroundColor: TULBOX_COLORS.GREEN }]}>
                                     <Ionicons name="shield-checkmark" size={14} color="#FFFFFF" />
                                     <Text variant="caption" weight="bold" color="#FFFFFF" style={styles.badgeText}>
                                         Verificado
@@ -429,15 +429,15 @@ export function ProfessionalProfileCard({
                                 </View>
                             )}
                         </View>
-                        
-                        {professional.profession && (
+
+                        {!!professional.profession && (
                             <Text variant="body" color={theme.textSecondary} style={styles.profession}>
                                 {professional.profession}
                             </Text>
                         )}
 
                         {/* Nivel del Profesional */}
-                        {professional.current_level_id && professional.current_level_id > 1 && (
+                        {!!professional.current_level_id && professional.current_level_id > 1 && (
                             <View style={[styles.levelBadge, { backgroundColor: getLevelColor(professional.current_level_id) + '20' }]}>
                                 <Ionicons name="trophy" size={14} color={getLevelColor(professional.current_level_id)} />
                                 <Text variant="caption" weight="bold" style={{ color: getLevelColor(professional.current_level_id) }}>
@@ -457,11 +457,11 @@ export function ProfessionalProfileCard({
                         <Text variant="h3" weight="bold" style={styles.ratingNumber}>
                             {rating.toFixed(1)}
                         </Text>
-                        {reviewCount > 0 && (
+                        {reviewCount > 0 ? (
                             <Text variant="caption" color={theme.textSecondary}>
                                 ({reviewCount} {reviewCount === 1 ? 'reseña' : 'reseñas'})
                             </Text>
-                        )}
+                        ) : null}
                     </View>
                 </View>
 
@@ -476,7 +476,7 @@ export function ProfessionalProfileCard({
                             {completedJobs === 1 ? 'trabajo' : 'trabajos'} completados
                         </Text>
                     </View>
-                    {professional.total_points && professional.total_points > 0 && (
+                    {!!professional.total_points && professional.total_points > 0 && (
                         <View style={styles.statItem}>
                             <Ionicons name="star" size={20} color="#FBBF24" />
                             <Text variant="body" weight="bold">
@@ -490,17 +490,17 @@ export function ProfessionalProfileCard({
                 </View>
 
                 {/* Badges Destacados */}
-                {professional.top_badges && professional.top_badges.length > 0 && (
+                {!!professional.top_badges && professional.top_badges.length > 0 && (
                     <View style={styles.badgesSection}>
                         <Text variant="caption" weight="bold" color={theme.textSecondary} style={styles.badgesTitle}>
                             Logros Destacados
                         </Text>
                         <View style={styles.badgesContainer}>
                             {professional.top_badges.map((badge) => (
-                                <View 
-                                    key={badge.id} 
+                                <View
+                                    key={badge.id}
                                     style={[
-                                        styles.badgeItem, 
+                                        styles.badgeItem,
                                         { backgroundColor: getBadgeLevelColor(badge.level) + '20' }
                                     ]}
                                 >
@@ -515,7 +515,7 @@ export function ProfessionalProfileCard({
                 )}
 
                 {/* Áreas de Servicio */}
-                {professional.areas_servicio && professional.areas_servicio.length > 0 && (
+                {!!professional.areas_servicio && professional.areas_servicio.length > 0 && (
                     <View style={styles.areasSection}>
                         <Text variant="caption" weight="bold" color={theme.textSecondary} style={styles.areasTitle}>
                             Especialidades
@@ -533,10 +533,10 @@ export function ProfessionalProfileCard({
                 )}
 
                 {/* Botones de Acción */}
-                {professional.whatsapp && (
+                {!!professional.whatsapp && (
                     <View style={styles.actionsContainer}>
                         <TouchableOpacity
-                            style={[styles.whatsappButton, { backgroundColor: SUMEE_COLORS.GREEN }]}
+                            style={[styles.whatsappButton, { backgroundColor: TULBOX_COLORS.GREEN }]}
                             onPress={handleWhatsApp}
                             activeOpacity={0.8}
                         >
@@ -719,4 +719,3 @@ const styles = StyleSheet.create({
         gap: 8,
     },
 });
-

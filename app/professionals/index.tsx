@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     StyleSheet,
@@ -8,15 +8,19 @@ import {
     RefreshControl,
     FlatList,
     ScrollView,
+    Platform,
+    type ListRenderItemInfo,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Text } from '@/components/Text';
 import { ProfessionalCard } from '@/components/ProfessionalCard';
+import { Skeleton } from '@/components/Skeleton';
+import { hapticFeedback } from '@/utils/haptics';
 import {
     getAllProfessionals,
     FeaturedProfessional,
@@ -24,17 +28,29 @@ import {
     SortOption,
 } from '@/services/professionals';
 import { LocationService } from '@/services/location';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
+
+/** Mínimo 44×44 pt (Apple HIG / Material) para áreas táctiles */
+const HIT_SLOP_EXPAND = { top: 8, bottom: 8, left: 8, right: 8 } as const;
+
+const SORT_OPTIONS: { label: string; value: SortOption }[] = [
+    { label: '🎯 Recomendado', value: 'hybrid' },
+    { label: '📍 Más Cercano', value: 'distance' },
+    { label: '✅ Perfil Completo', value: 'completeness' },
+    { label: '⭐ Mejor Calificado', value: 'rating' },
+    { label: '💼 Más Experiencia', value: 'experience' },
+];
 
 export default function ProfessionalsScreen() {
     const { theme } = useTheme();
     const { profile } = useAuth();
+    const { specialty } = useLocalSearchParams<{ specialty: string }>();
     const router = useRouter();
-    
+
     const [professionals, setProfessionals] = useState<FeaturedProfessional[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(specialty || '');
     const [sortBy, setSortBy] = useState<SortOption>('hybrid');
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState<ProfessionalFilters>({});
@@ -115,97 +131,142 @@ export default function ProfessionalsScreen() {
         setRefreshing(false);
     }, [loadUserLocation, loadProfessionals]);
 
-    const handleSearch = (text: string) => {
+    const handleSearch = useCallback((text: string) => {
         setSearchQuery(text);
-        // Filtrar en memoria (búsqueda simple)
-        // TODO: Implementar búsqueda en backend si es necesario
-    };
+    }, []);
 
-    const filteredProfessionals = professionals.filter((prof) => {
-        if (!searchQuery.trim()) return true;
+    const filteredProfessionals = useMemo(() => {
+        if (!searchQuery.trim()) return professionals;
         const query = searchQuery.toLowerCase();
-        return (
-            prof.full_name?.toLowerCase().includes(query) ||
-            prof.profession?.toLowerCase().includes(query) ||
-            prof.areas_servicio?.some(area => area.toLowerCase().includes(query))
-        );
-    });
+        return professionals.filter((prof) => {
+            return (
+                prof.full_name?.toLowerCase().includes(query) ||
+                prof.profession?.toLowerCase().includes(query) ||
+                prof.areas_servicio?.some((area) => area.toLowerCase().includes(query))
+            );
+        });
+    }, [professionals, searchQuery]);
 
-    const renderProfessional = ({ item }: { item: FeaturedProfessional }) => {
-        return (
-            <View style={styles.professionalItem}>
-                <ProfessionalCard
-                    id={item.user_id}
-                    name={item.full_name}
-                    specialty={item.profession || 'Profesional'}
-                    rating={item.calificacion_promedio || 0}
-                    completedJobs={item.review_count || 0}
-                    photo={item.avatar_url || undefined}
-                    verified={item.verified}
-                    distance={item.distance}
-                    areasServicio={Array.isArray(item.areas_servicio) ? item.areas_servicio : []}
-                    whatsapp={item.whatsapp || undefined}
-                    onPress={() => router.push(`/professional/${item.user_id}`)}
-                />
-                
-                {/* Badge de completitud del perfil */}
-                {item.profile_completeness !== undefined && (
-                    <View style={styles.completenessBadge}>
-                        <View style={styles.completenessBarContainer}>
-                            <View
-                                style={[
-                                    styles.completenessBar,
-                                    {
-                                        width: `${item.profile_completeness}%`,
-                                        backgroundColor:
-                                            item.profile_completeness >= 80
-                                                ? SUMEE_COLORS.GREEN
-                                                : item.profile_completeness >= 60
-                                                ? SUMEE_COLORS.YELLOW
-                                                : SUMEE_COLORS.RED,
-                                    },
-                                ]}
-                            />
+    const openProfessionalProfile = useCallback(
+        (userId: string) => {
+            router.push(`/professional/${userId}`);
+        },
+        [router]
+    );
+
+    const renderProfessional = useCallback(
+        ({ item }: ListRenderItemInfo<FeaturedProfessional>) => {
+            return (
+                <View style={styles.professionalItem}>
+                    <ProfessionalCard
+                        id={item.user_id}
+                        name={item.full_name}
+                        specialty={item.profession || 'Profesional'}
+                        rating={item.calificacion_promedio || 0}
+                        completedJobs={item.review_count || 0}
+                        photo={item.avatar_url || undefined}
+                        verified={item.verified}
+                        distance={item.distance}
+                        isOnline={true}
+                        areasServicio={Array.isArray(item.areas_servicio) ? item.areas_servicio : []}
+                        whatsapp={item.whatsapp || undefined}
+                        onPress={() => openProfessionalProfile(item.user_id)}
+                    />
+
+                    {item.profile_completeness !== undefined && (
+                        <View
+                            style={styles.completenessBadge}
+                            accessibilityRole="none"
+                            accessibilityLabel={`Completitud del perfil ${item.profile_completeness} por ciento`}
+                        >
+                            <View style={styles.completenessBarContainer}>
+                                <View
+                                    style={[
+                                        styles.completenessBar,
+                                        {
+                                            width: `${item.profile_completeness}%`,
+                                            backgroundColor:
+                                                item.profile_completeness >= 80
+                                                    ? TULBOX_COLORS.GREEN
+                                                    : item.profile_completeness >= 60
+                                                      ? '#F59E0B'
+                                                      : '#EF4444',
+                                        },
+                                    ]}
+                                />
+                            </View>
+                            <Text variant="caption" style={styles.completenessText}>
+                                {item.profile_completeness}% completo
+                            </Text>
                         </View>
-                        <Text variant="caption" style={styles.completenessText}>
-                            {item.profile_completeness}% completo
-                        </Text>
-                    </View>
-                )}
-            </View>
-        );
-    };
+                    )}
+                </View>
+            );
+        },
+        [openProfessionalProfile]
+    );
 
-    const sortOptions: { label: string; value: SortOption }[] = [
-        { label: '🎯 Recomendado', value: 'hybrid' },
-        { label: '📍 Más Cercano', value: 'distance' },
-        { label: '✅ Perfil Completo', value: 'completeness' },
-        { label: '⭐ Mejor Calificado', value: 'rating' },
-        { label: '💼 Más Experiencia', value: 'experience' },
-    ];
+    const keyExtractor = useCallback((item: FeaturedProfessional) => item.user_id, []);
+
+    const resultsSummary = useMemo(() => {
+        const count = filteredProfessionals.length;
+        const countLabel =
+            count === 1 ? 'profesional encontrado' : 'profesionales encontrados';
+        let sortHint = '';
+        if (userLocation) {
+            const by =
+                sortBy === 'hybrid'
+                    ? 'recomendación (cercanía + perfil completo)'
+                    : sortBy === 'distance'
+                      ? 'cercanía'
+                      : sortBy === 'completeness'
+                        ? 'perfil completo'
+                        : sortBy === 'rating'
+                          ? 'calificación'
+                          : 'experiencia';
+            sortHint = ` • Ordenado por ${by}`;
+        }
+        return `${count} ${countLabel}${sortHint}`;
+    }, [filteredProfessionals.length, sortBy, userLocation]);
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
             <StatusBar style="dark" />
-            
+
             {/* Header */}
             <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
                 <TouchableOpacity
-                    onPress={() => router.back()}
-                    style={styles.backButton}
+                    onPress={() => {
+                        hapticFeedback.light();
+                        router.back();
+                    }}
+                    style={styles.hitTarget}
+                    hitSlop={HIT_SLOP_EXPAND}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Volver"
                 >
-                    <Ionicons name="arrow-back" size={24} color={theme.text} />
+                    <Ionicons name="arrow-back" size={24} color={theme.text} importantForAccessibility="no" />
                 </TouchableOpacity>
                 <Text variant="h2" weight="bold" style={styles.headerTitle}>
                     Profesionales
                 </Text>
                 <TouchableOpacity
-                    onPress={() => setShowFilters(!showFilters)}
-                    style={styles.filterButton}
+                    onPress={() => {
+                        hapticFeedback.light();
+                        setShowFilters(!showFilters);
+                    }}
+                    style={[styles.hitTarget, styles.filterButton]}
+                    hitSlop={HIT_SLOP_EXPAND}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                        (filters.profession || filters.minRating || filters.maxDistance)
+                            ? 'Filtros activos, abrir opciones de filtro'
+                            : 'Abrir filtros'
+                    }
                 >
-                    <Ionicons name="filter" size={24} color={theme.primary} />
+                    <Ionicons name="filter" size={24} color={theme.primary} importantForAccessibility="no" />
                     {(filters.profession || filters.minRating || filters.maxDistance) && (
                         <View style={[styles.filterBadge, { backgroundColor: theme.primary }]} />
                     )}
@@ -214,17 +275,32 @@ export default function ProfessionalsScreen() {
 
             {/* Search Bar */}
             <View style={[styles.searchContainer, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-                <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
+                <Ionicons
+                    name="search"
+                    size={20}
+                    color={theme.textSecondary}
+                    style={styles.searchIcon}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                />
                 <TextInput
                     style={[styles.searchInput, { color: theme.text }]}
                     placeholder="Buscar profesionales..."
                     placeholderTextColor={theme.textSecondary}
                     value={searchQuery}
                     onChangeText={handleSearch}
+                    accessibilityLabel="Buscar profesionales"
+                    clearButtonMode="never"
                 />
                 {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-                        <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+                    <TouchableOpacity
+                        onPress={() => setSearchQuery('')}
+                        style={styles.hitTarget}
+                        hitSlop={HIT_SLOP_EXPAND}
+                        accessibilityRole="button"
+                        accessibilityLabel="Limpiar búsqueda"
+                    >
+                        <Ionicons name="close-circle" size={22} color={theme.textSecondary} importantForAccessibility="no" />
                     </TouchableOpacity>
                 )}
             </View>
@@ -236,15 +312,21 @@ export default function ProfessionalsScreen() {
                 style={[styles.sortContainer, { backgroundColor: theme.surface }]}
                 contentContainerStyle={styles.sortContent}
             >
-                {sortOptions.map((option) => (
+                {SORT_OPTIONS.map((option) => (
                     <TouchableOpacity
                         key={option.value}
                         style={[
                             styles.sortButton,
                             sortBy === option.value && { backgroundColor: theme.primary },
                         ]}
-                        onPress={() => setSortBy(option.value)}
+                        onPress={() => {
+                            hapticFeedback.selection();
+                            setSortBy(option.value);
+                        }}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: sortBy === option.value }}
+                        accessibilityLabel={`Ordenar por ${option.label}`}
                     >
                         <Text
                             variant="caption"
@@ -259,30 +341,42 @@ export default function ProfessionalsScreen() {
 
             {/* Results Count */}
             {!loading && (
-                <View style={styles.resultsContainer}>
+                <View style={styles.resultsContainer} accessibilityLiveRegion="polite">
                     <Text variant="caption" color={theme.textSecondary}>
-                        {filteredProfessionals.length} {filteredProfessionals.length === 1 ? 'profesional encontrado' : 'profesionales encontrados'}
-                        {userLocation && ' • Ordenado por '}
-                        {userLocation && sortBy === 'hybrid' && 'recomendación (cercanía + perfil completo)'}
-                        {userLocation && sortBy === 'distance' && 'cercanía'}
-                        {userLocation && sortBy === 'completeness' && 'perfil completo'}
-                        {userLocation && sortBy === 'rating' && 'calificación'}
-                        {userLocation && sortBy === 'experience' && 'experiencia'}
+                        {resultsSummary}
                     </Text>
                 </View>
             )}
 
             {/* Professionals List */}
             {loading ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.primary} />
-                    <Text variant="body" color={theme.textSecondary} style={styles.loadingText}>
-                        Cargando profesionales...
-                    </Text>
+                <View style={styles.loadingList}>
+                    {[1, 2, 3, 4].map((i) => (
+                        <View key={i} style={[styles.skeletonCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                            <View style={styles.skeletonHeader}>
+                                <Skeleton width={60} height={60} borderRadius={30} />
+                                <View style={{ flex: 1, gap: 8 }}>
+                                    <Skeleton width="70%" height={18} />
+                                    <Skeleton width="40%" height={12} />
+                                </View>
+                            </View>
+                            <View style={{ marginTop: 16, gap: 10 }}>
+                                <Skeleton width="100%" height={14} />
+                                <Skeleton width="90%" height={14} />
+                            </View>
+                            <Skeleton width="100%" height={44} borderRadius={12} style={{ marginTop: 20 }} />
+                        </View>
+                    ))}
                 </View>
             ) : filteredProfessionals.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                    <Ionicons name="people-outline" size={64} color={theme.textSecondary} />
+                    <Ionicons
+                        name="people-outline"
+                        size={64}
+                        color={theme.textSecondary}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no"
+                    />
                     <Text variant="h3" weight="bold" style={styles.emptyTitle}>
                         No se encontraron profesionales
                     </Text>
@@ -296,12 +390,16 @@ export default function ProfessionalsScreen() {
                 <FlatList
                     data={filteredProfessionals}
                     renderItem={renderProfessional}
-                    keyExtractor={(item) => item.user_id}
+                    keyExtractor={keyExtractor}
                     contentContainerStyle={styles.listContent}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                     }
                     showsVerticalScrollIndicator={false}
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    windowSize={8}
+                    maxToRenderPerBatch={8}
+                    initialNumToRender={8}
                 />
             )}
         </SafeAreaView>
@@ -320,8 +418,25 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderBottomWidth: 1,
     },
-    backButton: {
-        padding: 4,
+    hitTarget: {
+        minWidth: 44,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    loadingList: {
+        padding: 20,
+        gap: 20,
+    },
+    skeletonCard: {
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+    },
+    skeletonHeader: {
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'center',
     },
     headerTitle: {
         flex: 1,
@@ -330,7 +445,6 @@ const styles = StyleSheet.create({
         marginRight: 10,
     },
     filterButton: {
-        padding: 4,
         position: 'relative',
     },
     filterBadge: {
@@ -355,10 +469,6 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 16,
     },
-    clearButton: {
-        marginLeft: 10,
-        padding: 4,
-    },
     sortContainer: {
         borderBottomWidth: 1,
         borderBottomColor: '#E2E8F0',
@@ -368,6 +478,8 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
     },
     sortButton: {
+        minHeight: 44,
+        justifyContent: 'center',
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 20,

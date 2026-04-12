@@ -9,9 +9,6 @@ export default function OnboardingLayout() {
             }}
         >
             <Stack.Screen name="welcome" />
-            <Stack.Screen name="services" />
-            <Stack.Screen name="management" />
-            <Stack.Screen name="permissions" />
         </Stack>
     );
 }

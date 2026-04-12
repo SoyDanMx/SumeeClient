@@ -9,6 +9,8 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { validateUUID, validateJobStatus, withTimeout } from './validation';
+import { cache, CacheKeys } from './cache';
 
 export interface ClientLead {
     id: string;
@@ -32,6 +34,8 @@ export interface ClientLead {
     appointment_date?: string | null;
     appointment_time?: string | null;
     appointment_status?: string | null;
+    /** Slug de disciplina (p. ej. electricidad); alineado con `service_catalog.discipline` */
+    disciplina_ia?: string | null;
 }
 
 export class LeadsService {
@@ -44,7 +48,7 @@ export class LeadsService {
         if (lead.status) {
             return lead.status.toLowerCase();
         }
-        
+
         // Si no, normalizar desde estado legacy
         if (lead.estado) {
             const estado = lead.estado.toLowerCase();
@@ -57,7 +61,7 @@ export class LeadsService {
             };
             return statusMap[estado] || 'pending';
         }
-        
+
         return 'pending';
     }
 
@@ -67,14 +71,44 @@ export class LeadsService {
      */
     static async getClientLeads(
         clientId: string,
-        filter?: 'all' | 'pending' | 'accepted' | 'completed'
+        filter?: 'all' | 'pending' | 'accepted' | 'completed',
+        bypassCache: boolean = false
     ): Promise<ClientLead[]> {
         try {
+            // ✅ Validar ID de cliente
+            const clientIdValidation = validateUUID(clientId);
+            if (!clientIdValidation.valid) {
+                throw new Error(clientIdValidation.error?.message || 'ID de cliente inválido');
+            }
+
+            // ✅ Validar filtro de estado si está presente
+            if (filter && filter !== 'all') {
+                const statusValidation = validateJobStatus(filter);
+                if (!statusValidation.valid) {
+                    console.warn('[LeadsService] Invalid filter status, using "all"');
+                    filter = 'all';
+                }
+            }
+
             console.log('[LeadsService] Fetching leads for client:', clientId);
             console.log('[LeadsService] Filter:', filter || 'all');
 
+            // ✅ Manejo de Cache
+            const cacheKey = CacheKeys.leads(clientId) + (filter ? `:${filter}` : '');
+            if (!bypassCache) {
+                const cached = cache.get<ClientLead[]>(cacheKey);
+                if (cached) {
+                    console.log('[LeadsService] 📦 Using cached leads');
+                    return cached;
+                }
+            } else {
+                console.log('[LeadsService] 🔄 Bypassing cache for fresh data');
+                cache.invalidate(cacheKey);
+            }
+
             // Consulta base: obtener todos los leads del cliente
             // EXCLUIR leads cancelados (tanto en estado legacy como moderno)
+            // ✅ OPTIMIZADO: Limitar a 200 leads más recientes para evitar timeouts
             let query = supabase
                 .from('leads')
                 .select('*')
@@ -82,9 +116,15 @@ export class LeadsService {
                 // Excluir cancelados: ni 'cancelado' en estado legacy ni 'cancelled' en status moderno
                 .neq('estado', 'cancelado')
                 .neq('status', 'cancelled')
-                .order('updated_at', { ascending: false });
+                .order('updated_at', { ascending: false })
+                .limit(200); // ✅ Limitar resultados para mejor performance
 
-            const { data, error } = await query;
+            // ✅ CORREGIDO: Cast para que withTimeout funcione con Supabase queries
+            const { data, error } = await withTimeout(
+                query as unknown as Promise<{ data: any; error: any }>,
+                15000, // ✅ Aumentado a 15 segundos (la query puede tardar con muchos leads)
+                'Timeout al obtener leads del cliente'
+            );
 
             if (error) {
                 console.error('[LeadsService] Error fetching leads:', error);
@@ -99,7 +139,7 @@ export class LeadsService {
             }
 
             // Normalizar estados y filtrar
-            let normalizedLeads = data.map(lead => ({
+            let normalizedLeads = data.map((lead: any) => ({
                 ...lead,
                 status: this.normalizeStatus(lead),
             })) as ClientLead[];
@@ -122,6 +162,9 @@ export class LeadsService {
                 completed: normalizedLeads.filter(l => l.status === 'completed').length,
             });
 
+            // ✅ Guardar en cache (TTL: 2 minutos para leads)
+            cache.set(cacheKey, normalizedLeads, 2 * 60 * 1000);
+
             return normalizedLeads;
         } catch (error: any) {
             console.error('[LeadsService] Error in getClientLeads:', error);
@@ -134,11 +177,30 @@ export class LeadsService {
      */
     static async getLeadById(leadId: string): Promise<ClientLead | null> {
         try {
-            const { data, error } = await supabase
-                .from('leads')
-                .select('*')
-                .eq('id', leadId)
-                .single();
+            // ✅ Validar ID de lead
+            const leadIdValidation = validateUUID(leadId);
+            if (!leadIdValidation.valid) {
+                throw new Error(leadIdValidation.error?.message || 'ID de lead inválido');
+            }
+
+            // ✅ Intentar obtener del cache primero
+            const cacheKey = CacheKeys.lead(leadId);
+            const cached = cache.get<ClientLead>(cacheKey);
+            if (cached) {
+                console.log('[LeadsService] Using cached lead');
+                return cached;
+            }
+
+            // ✅ CORREGIDO: Cast para que withTimeout funcione con Supabase queries
+            const { data, error } = await withTimeout(
+                supabase
+                    .from('leads')
+                    .select('*')
+                    .eq('id', leadId)
+                    .single() as unknown as Promise<{ data: any; error: any }>,
+                15000, // ✅ Aumentado a 15 segundos
+                'Timeout al obtener lead'
+            );
 
             if (error) {
                 console.error('[LeadsService] Error fetching lead:', error);
@@ -147,10 +209,15 @@ export class LeadsService {
 
             if (!data) return null;
 
-            return {
+            const normalizedLead = {
                 ...data,
                 status: this.normalizeStatus(data),
             } as ClientLead;
+
+            // ✅ Guardar en cache (TTL: 5 minutos para leads individuales)
+            cache.set(cacheKey, normalizedLead, 5 * 60 * 1000);
+
+            return normalizedLead;
         } catch (error: any) {
             console.error('[LeadsService] Error in getLeadById:', error);
             throw error;
@@ -179,8 +246,8 @@ export class LeadsService {
                 },
                 async (payload) => {
                     console.log('[LeadsService] Real-time update received:', payload.eventType);
-                    // Recargar leads cuando hay cambios
-                    const leads = await this.getClientLeads(clientId);
+                    // Recargar leads cuando hay cambios (FORZANDO bypass de cache)
+                    const leads = await this.getClientLeads(clientId, 'all', true);
                     callback(leads);
                 }
             )
@@ -244,7 +311,7 @@ export class LeadsService {
     ): Promise<ClientLead | null> {
         try {
             console.log('[LeadsService] Updating lead:', leadId);
-            
+
             const updatePayload = {
                 servicio_solicitado: data.service.trim() || null,
                 descripcion_proyecto: data.description.trim() || null,
@@ -264,11 +331,11 @@ export class LeadsService {
 
             if (error) {
                 console.error('[LeadsService] Direct update failed:', error);
-                
+
                 // Si falla por RLS, intentar con RPC
                 if (error.code === '42501' || error.code === 'PGRST301') {
                     console.log('[LeadsService] Falling back to RPC update_lead_details');
-                    
+
                     const { error: rpcError } = await supabase.rpc('update_lead_details', {
                         lead_id: leadId,
                         servicio_solicitado_in: updatePayload.servicio_solicitado,
@@ -340,7 +407,7 @@ export class LeadsService {
             if (hasProfessional) {
                 // Si hay profesional asignado, cambiar estado a 'cancelado' (soft delete)
                 console.log('[LeadsService] Lead has professional, using soft delete');
-                
+
                 const { error } = await supabase
                     .from('leads')
                     .update({
@@ -358,7 +425,7 @@ export class LeadsService {
             } else {
                 // Si NO hay profesional asignado, eliminar completamente (hard delete)
                 console.log('[LeadsService] Lead has no professional, using hard delete');
-                
+
                 const { error } = await supabase
                     .from('leads')
                     .delete()
@@ -376,6 +443,47 @@ export class LeadsService {
             console.error('[LeadsService] Error in cancelLead:', error);
             throw error;
         }
+    }
+
+    /**
+     * Marcar lead como completado (cliente confirma fin del servicio).
+     */
+    static async completeLead(leadId: string, clientId: string): Promise<ClientLead | null> {
+        const { data: leadData, error: fetchError } = await supabase
+            .from('leads')
+            .select('cliente_id')
+            .eq('id', leadId)
+            .single();
+
+        if (fetchError || !leadData) {
+            throw new Error('Lead no encontrado');
+        }
+        if (leadData.cliente_id !== clientId) {
+            throw new Error('No tienes permisos para completar esta solicitud');
+        }
+
+        const { data: updated, error } = await supabase
+            .from('leads')
+            .update({
+                estado: 'completado',
+                status: 'completed',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', leadId)
+            .eq('cliente_id', clientId)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('[LeadsService] Error in completeLead:', error);
+            throw error;
+        }
+        if (!updated) return null;
+
+        return {
+            ...updated,
+            status: this.normalizeStatus(updated),
+        } as ClientLead;
     }
 }
 

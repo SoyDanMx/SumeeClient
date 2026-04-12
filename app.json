@@ -1,52 +1,75 @@
 {
   "expo": {
-    "name": "SumeeClient",
-    "slug": "SumeeClient",
+    "name": "TulBox",
+    "slug": "TulBoxClient",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "tulbox-client",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#820AD1"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tulbox.client",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "TulBox necesita tu ubicación para mostrarte los servicios y técnicos más cercanos a ti."
+      }
     },
     "android": {
+      "package": "com.tulbox.client",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#820AD1"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "networkSecurityConfig": "./android-network-security-config.xml",
+      "usesCleartextTraffic": false,
+      "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "static"
     },
     "plugins": [
       "expo-router",
       [
-        "@rnmapbox/maps",
+        "expo-location",
         {
-          "RNMapboxMapsDownloadToken": "pk.eyJ1Ijoic3VtZWUiLCJhIjoiY21rM2lyYTJqMHFtcTNlcTFkbXh3ZHNpaSJ9.xMlWwP8DBbKZXciRHgXa6w"
+          "locationWhenInUsePermission": "TulBox necesita tu ubicación para mostrarte los servicios y técnicos más cercanos a ti."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "extra": {
-      "router": {},
-      "mapboxToken": "pk.eyJ1Ijoic3VtZWUiLCJhIjoiY21rM2lyYTJqMHFtcTNlcTFkbXh3ZHNpaSJ9.xMlWwP8DBbKZXciRHgXa6w"
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "694bdc32-c267-4dbc-b2b5-e0b192bb46e8"
+      }
+    },
+    "owner": "sumeepros-organization",
+    "runtimeVersion": {
+      "policy": "appVersion"
     },
     "updates": {
-      "enabled": false,
-      "checkAutomatically": "NEVER",
-      "fallbackToCacheTimeout": 0,
-      "url": null
-    },
-    "runtimeVersion": {
-      "policy": "sdkVersion"
+      "url": "https://u.expo.dev/694bdc32-c267-4dbc-b2b5-e0b192bb46e8"
     }
   }
 }

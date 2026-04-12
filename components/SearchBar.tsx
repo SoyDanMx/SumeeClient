@@ -9,6 +9,7 @@ interface SearchBarProps {
     onChangeText?: (text: string) => void;
     onPress?: () => void;
     editable?: boolean;
+    autoFocus?: boolean;
 }
 
 export function SearchBar({ 
@@ -16,7 +17,8 @@ export function SearchBar({
     value, 
     onChangeText, 
     onPress,
-    editable = true 
+    editable = true,
+    autoFocus = false
 }: SearchBarProps) {
     const { theme } = useTheme();
 
@@ -34,6 +36,7 @@ export function SearchBar({
                     value={value}
                     onChangeText={onChangeText}
                     editable={editable}
+                    autoFocus={autoFocus}
                     style={[styles.input, { color: theme.text }]}
                 />
             </View>

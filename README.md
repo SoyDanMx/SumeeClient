@@ -45,7 +45,9 @@ npm install
 
 # Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tus credenciales de Supabase y APIs
+# Editar .env con: EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_MAPBOX_TOKEN
+# Nunca subas .env ni valores reales en eas.json a Git.
+# Para EAS Build: usa `eas secret:create` para cada variable.
 ```
 
 ### Ejecutar la App
@@ -241,7 +243,7 @@ SumeeClient/
 ## 🔗 Enlaces
 
 - **Repositorio:** [https://github.com/SoyDanMx/SumeeClient](https://github.com/SoyDanMx/SumeeClient)
-- **Web App:** [https://sumeeapp.com](https://sumeeapp.com)
+- **Web App:** [https://tulbox.pro](https://tulbox.pro)
 - **Documentación Expo:** [https://docs.expo.dev](https://docs.expo.dev)
 - **Documentación Supabase:** [https://supabase.com/docs](https://supabase.com/docs)
 

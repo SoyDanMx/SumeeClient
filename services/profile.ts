@@ -3,7 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 /**
  * Profile Service - Gestión de perfil de cliente
- * Alineado con SumeePros
+ * Alineado con TulBoxPros
  */
 
 export interface Address {
@@ -92,7 +92,7 @@ export class ProfileService {
             console.log('[ProfileService] Image URI:', imageUri);
 
             // Leer el archivo como base64 usando expo-file-system
-            // Usar el mismo método que funciona en SumeePros/app/professional-docs.tsx
+            // Usar el mismo método que funciona en TulBoxPros/app/professional-docs.tsx
             console.log('[ProfileService] Reading file from local URI...');
             const base64 = await FileSystem.readAsStringAsync(imageUri, {
                 encoding: 'base64' as FileSystem.EncodingType,
@@ -115,23 +115,23 @@ export class ProfileService {
 
             // Convertir base64 a ArrayBuffer para Supabase Storage
             // En React Native, Supabase Storage acepta ArrayBuffer o Uint8Array directamente
-            // Este es el método que funciona en otras partes del proyecto (SumeePros)
+            // Este es el método que funciona en otras partes del proyecto (TulBoxPros)
             console.log('[ProfileService] Converting base64 to ArrayBuffer...');
-            
-            // Convertir base64 a Uint8Array (método probado en SumeePros)
+
+            // Convertir base64 a Uint8Array (método probado en TulBoxPros)
             const binaryString = atob(base64);
             const bytes = new Uint8Array(binaryString.length);
             for (let i = 0; i < binaryString.length; i++) {
                 bytes[i] = binaryString.charCodeAt(i);
             }
-            
+
             // Usar el ArrayBuffer del Uint8Array (como en professional-docs.tsx)
             const arrayBuffer = bytes.buffer;
 
             console.log('[ProfileService] ArrayBuffer created, size:', arrayBuffer.byteLength, 'bytes');
 
             // Subir a Supabase Storage usando ArrayBuffer
-            // Este es el método que funciona en SumeePros/app/professional-docs.tsx
+            // Este es el método que funciona en TulBoxPros/app/professional-docs.tsx
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('professional-avatars')
                 .upload(filePath, arrayBuffer, {
@@ -142,7 +142,7 @@ export class ProfileService {
 
             if (uploadError) {
                 console.error('[ProfileService] Upload error:', {
-                    code: uploadError.statusCode,
+                    code: (uploadError as any).status || (uploadError as any).statusCode,
                     message: uploadError.message,
                     error: uploadError,
                 });
@@ -187,7 +187,7 @@ export class ProfileService {
         try {
             // Importación dinámica para evitar errores si el paquete no está instalado
             const ImagePicker = await import('expo-image-picker');
-            
+
             // Pedir permisos
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {

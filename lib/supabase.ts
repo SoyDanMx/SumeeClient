@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
+import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
@@ -7,11 +7,16 @@ import * as SecureStore from 'expo-secure-store';
 export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
 
+console.log('[Supabase] Initializing with URL:', supabaseUrl.substring(0, 20) + '...');
+if (supabaseUrl.includes('placeholder')) {
+    console.error('[Supabase] ⚠️ WARNING: Using placeholder URL. Network requests WILL fail in APK/Production build if EXPO_PUBLIC_SUPABASE_URL is not set.');
+}
+
 // Custom storage adapter: SecureStore for native, localStorage for web
 const createStorageAdapter = () => {
     // Detect web platform - check both Platform.OS and typeof window
     const isWeb = Platform.OS === 'web' || (typeof window !== 'undefined' && typeof localStorage !== 'undefined');
-    
+
     console.log('[Supabase] Platform detection:', {
         PlatformOS: Platform.OS,
         isWeb,

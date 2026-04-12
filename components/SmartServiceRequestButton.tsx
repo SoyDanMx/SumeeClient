@@ -23,6 +23,7 @@ interface SmartServiceRequestButtonProps {
     onPress: () => void;
     variant?: ButtonVariant;
     style?: any;
+    success?: boolean;
 }
 
 const BUTTON_VARIANTS: Record<ButtonVariant, { text: string; icon?: string }> = {
@@ -39,6 +40,7 @@ export function SmartServiceRequestButton({
     onPress,
     variant = 'A',
     style,
+    success = false,
 }: SmartServiceRequestButtonProps) {
     const { theme } = useTheme();
     const [pulseAnim] = useState(new Animated.Value(1));
@@ -46,11 +48,12 @@ export function SmartServiceRequestButton({
 
     // Determinar estado del botón
     const buttonState: ButtonState = React.useMemo(() => {
+        if (success) return 'success';
         if (error) return 'error';
         if (loading) return 'loading';
         if (!validation.canSubmit) return 'disabled';
         return 'ready';
-    }, [validation.canSubmit, loading, error]);
+    }, [validation.canSubmit, loading, error, success]);
 
     // Animación de pulse cuando está listo
     useEffect(() => {
@@ -327,4 +330,3 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
 });
-

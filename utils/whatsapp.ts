@@ -77,8 +77,8 @@ export async function openWhatsApp(phone: string, message?: string): Promise<boo
  */
 export function generateServiceMessage(serviceName: string, professionalName?: string): string {
     const greeting = professionalName 
-        ? `Hola, soy ${professionalName}, técnico certificado de SumeeApp`
-        : 'Hola, soy un técnico certificado de SumeeApp';
+        ? `Hola, soy ${professionalName}, técnico certificado de TulBoxApp`
+        : 'Hola, soy un técnico certificado de TulBoxApp';
     
     return `${greeting} y me interesa ayudarte con tu proyecto de "${serviceName}". ¿Cuándo te viene bien que coordinemos?`;
 }

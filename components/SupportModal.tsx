@@ -21,7 +21,7 @@ import { Text } from '@/components/Text';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { openWhatsApp } from '@/utils/whatsapp';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 
 interface SupportModalProps {
     visible: boolean;
@@ -45,36 +45,36 @@ const SUPPORT_CATEGORIES: SupportCategoryOption[] = [
         title: 'Problemas Técnicos',
         description: 'La app no funciona correctamente',
         icon: 'construct-outline',
-        color: SUMEE_COLORS.ERROR,
-        message: 'Hola, tengo problemas técnicos con la aplicación SumeeApp. ',
+        color: TULBOX_COLORS.ERROR,
+        message: 'Hola, tengo problemas técnicos con la aplicación TulBoxApp. ',
     },
     {
         id: 'dispute',
         title: 'Controversias',
         description: 'Problema con un servicio contratado',
         icon: 'alert-circle-outline',
-        color: SUMEE_COLORS.WARNING,
-        message: 'Hola, tengo una controversia con un servicio contratado a través de SumeeApp. ',
+        color: TULBOX_COLORS.WARNING,
+        message: 'Hola, tengo una controversia con un servicio contratado a través de TulBoxApp. ',
     },
     {
         id: 'general',
         title: 'Soporte General',
         description: 'Necesito ayuda o información',
         icon: 'help-circle-outline',
-        color: SUMEE_COLORS.INFO,
-        message: 'Hola, necesito soporte con SumeeApp. ',
+        color: TULBOX_COLORS.INFO,
+        message: 'Hola, necesito soporte con TulBoxApp. ',
     },
     {
         id: 'other',
         title: 'Otra Consulta',
         description: 'Escribe tu mensaje personalizado',
         icon: 'chatbubble-outline',
-        color: SUMEE_COLORS.PURPLE,
+        color: TULBOX_COLORS.PURPLE,
         message: 'Hola, ',
     },
 ];
 
-// Número de soporte de Sumee (configurable desde .env en el futuro)
+// Número de soporte de TulBox (configurable desde .env en el futuro)
 const SUPPORT_PHONE = '+5215636741156';
 
 export function SupportModal({ visible, onClose }: SupportModalProps) {
@@ -101,11 +101,11 @@ export function SupportModal({ visible, onClose }: SupportModalProps) {
             let message = '';
 
             if (selectedCategory === 'other') {
-                message = customMessage.trim() || 'Hola, necesito ayuda con SumeeApp.';
+                message = customMessage.trim() || 'Hola, necesito ayuda con TulBoxApp.';
             } else {
                 const category = SUPPORT_CATEGORIES.find(c => c.id === selectedCategory);
-                message = category?.message || 'Hola, necesito ayuda con SumeeApp.';
-                
+                message = category?.message || 'Hola, necesito ayuda con TulBoxApp.';
+
                 // Si hay mensaje personalizado adicional, agregarlo
                 if (customMessage.trim()) {
                     message += customMessage.trim();
@@ -117,7 +117,7 @@ export function SupportModal({ visible, onClose }: SupportModalProps) {
             message += userInfo;
 
             const success = await openWhatsApp(SUPPORT_PHONE, message);
-            
+
             if (success) {
                 // Cerrar modal después de enviar
                 setTimeout(() => {
@@ -157,186 +157,224 @@ export function SupportModal({ visible, onClose }: SupportModalProps) {
                     activeOpacity={1}
                     onPress={onClose}
                 />
-                <View style={styles.keyboardView}>
+                <View style={styles.modalContentWrapper}>
                     <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                         style={{ flex: 1 }}
                     >
                         <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <Text variant="h2" weight="bold">
-                            Ayuda y Soporte
-                        </Text>
-                        <TouchableOpacity
-                            onPress={onClose}
-                            style={styles.closeButton}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                            <Ionicons name="close" size={24} color={theme.text} />
-                        </TouchableOpacity>
-                    </View>
-
-                    <ScrollView
-                        style={styles.scrollView}
-                        contentContainerStyle={styles.scrollContent}
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                    >
-                        {/* Categorías */}
-                        {!selectedCategory && (
-                            <View style={styles.categoriesContainer}>
-                                <Text variant="body" color={theme.textSecondary} style={styles.subtitle}>
-                                    Selecciona el tipo de ayuda que necesitas:
+                            {/* Header */}
+                            <View style={styles.header}>
+                                <Text variant="h2" weight="bold">
+                                    Ayuda y Soporte
                                 </Text>
-                                {SUPPORT_CATEGORIES.map((category) => (
-                                    <TouchableOpacity
-                                        key={category.id}
-                                        onPress={() => handleCategorySelect(category.id)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Card
-                                            variant="elevated"
-                                            style={[
-                                                styles.categoryCard,
-                                                { backgroundColor: theme.surface },
-                                            ]}
-                                        >
-                                            <View style={styles.categoryContent}>
+                                <TouchableOpacity
+                                    onPress={onClose}
+                                    style={styles.closeButton}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Ionicons name="close" size={24} color={theme.text} />
+                                </TouchableOpacity>
+                            </View>
+
+                            <ScrollView
+                                style={styles.scrollView}
+                                contentContainerStyle={styles.scrollContent}
+                                showsVerticalScrollIndicator={false}
+                                keyboardShouldPersistTaps="handled"
+                            >
+                                {/* Categorías */}
+                                {!selectedCategory && (
+                                    <View style={styles.categoriesContainer}>
+                                        <Text variant="body" color={theme.textSecondary} style={styles.subtitle}>
+                                            Selecciona el tipo de ayuda que necesitas:
+                                        </Text>
+                                        {SUPPORT_CATEGORIES.map((category) => (
+                                            <TouchableOpacity
+                                                key={category.id}
+                                                onPress={() => handleCategorySelect(category.id)}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Card
+                                                    variant="elevated"
+                                                    style={[
+                                                        styles.categoryCard,
+                                                        { backgroundColor: theme.surface },
+                                                    ]}
+                                                >
+                                                    <View style={styles.categoryContent}>
+                                                        <View
+                                                            style={[
+                                                                styles.categoryIconContainer,
+                                                                { backgroundColor: category.color + '20' },
+                                                            ]}
+                                                        >
+                                                            <Ionicons
+                                                                name={category.icon}
+                                                                size={32}
+                                                                color={category.color}
+                                                            />
+                                                        </View>
+                                                        <View style={styles.categoryTextContainer}>
+                                                            <Text variant="body" weight="bold">
+                                                                {category.title}
+                                                            </Text>
+                                                            <Text variant="caption" color={theme.textSecondary}>
+                                                                {category.description}
+                                                            </Text>
+                                                        </View>
+                                                        <Ionicons
+                                                            name="chevron-forward"
+                                                            size={20}
+                                                            color={theme.textSecondary}
+                                                        />
+                                                    </View>
+                                                </Card>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+
+                                {/* Formulario de mensaje */}
+                                {selectedCategory && (
+                                    <View style={styles.messageContainer}>
+                                        <View style={styles.selectedCategoryHeader}>
+                                            <TouchableOpacity
+                                                onPress={() => setSelectedCategory(null)}
+                                                style={styles.backButton}
+                                            >
+                                                <Ionicons
+                                                    name="arrow-back"
+                                                    size={24}
+                                                    color={theme.primary}
+                                                />
+                                            </TouchableOpacity>
+                                            <View style={styles.selectedCategoryInfo}>
                                                 <View
                                                     style={[
-                                                        styles.categoryIconContainer,
-                                                        { backgroundColor: category.color + '20' },
+                                                        styles.selectedCategoryIcon,
+                                                        {
+                                                            backgroundColor:
+                                                                selectedCategoryData?.color + '20',
+                                                        },
                                                     ]}
                                                 >
                                                     <Ionicons
-                                                        name={category.icon}
-                                                        size={32}
-                                                        color={category.color}
+                                                        name={selectedCategoryData?.icon || 'help-circle'}
+                                                        size={24}
+                                                        color={selectedCategoryData?.color}
                                                     />
                                                 </View>
-                                                <View style={styles.categoryTextContainer}>
-                                                    <Text variant="body" weight="bold">
-                                                        {category.title}
-                                                    </Text>
-                                                    <Text variant="caption" color={theme.textSecondary}>
-                                                        {category.description}
-                                                    </Text>
-                                                </View>
-                                                <Ionicons
-                                                    name="chevron-forward"
-                                                    size={20}
-                                                    color={theme.textSecondary}
-                                                />
+                                                <Text variant="h3" weight="bold">
+                                                    {selectedCategoryData?.title}
+                                                </Text>
                                             </View>
-                                        </Card>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        )}
-
-                        {/* Formulario de mensaje */}
-                        {selectedCategory && (
-                            <View style={styles.messageContainer}>
-                                <View style={styles.selectedCategoryHeader}>
-                                    <TouchableOpacity
-                                        onPress={() => setSelectedCategory(null)}
-                                        style={styles.backButton}
-                                    >
-                                        <Ionicons
-                                            name="arrow-back"
-                                            size={24}
-                                            color={theme.primary}
-                                        />
-                                    </TouchableOpacity>
-                                    <View style={styles.selectedCategoryInfo}>
-                                        <View
-                                            style={[
-                                                styles.selectedCategoryIcon,
-                                                {
-                                                    backgroundColor:
-                                                        selectedCategoryData?.color + '20',
-                                                },
-                                            ]}
-                                        >
-                                            <Ionicons
-                                                name={selectedCategoryData?.icon || 'help-circle'}
-                                                size={24}
-                                                color={selectedCategoryData?.color}
-                                            />
                                         </View>
-                                        <Text variant="h3" weight="bold">
-                                            {selectedCategoryData?.title}
-                                        </Text>
-                                    </View>
-                                </View>
 
-                                <View style={styles.messageField}>
-                                    <Text variant="body" weight="medium" style={styles.messageLabel}>
-                                        {selectedCategory === 'other'
-                                            ? 'Escribe tu mensaje:'
-                                            : 'Mensaje pre-configurado (puedes editarlo):'}
-                                    </Text>
-                                    <TextInput
-                                        style={[
-                                            styles.messageInput,
-                                            {
-                                                backgroundColor: theme.surface,
-                                                color: theme.text,
-                                                borderColor: theme.border,
-                                            },
-                                        ]}
-                                        value={
-                                            selectedCategory === 'other'
-                                                ? customMessage
-                                                : selectedCategoryData?.message + customMessage
-                                        }
-                                        onChangeText={(text) => {
-                                            if (selectedCategory === 'other') {
-                                                setCustomMessage(text);
-                                            } else {
-                                                // Remover el mensaje base y solo guardar el adicional
-                                                const baseMessage = selectedCategoryData?.message || '';
-                                                if (text.startsWith(baseMessage)) {
-                                                    setCustomMessage(text.substring(baseMessage.length));
-                                                } else {
-                                                    setCustomMessage(text);
+                                        <View style={styles.messageField}>
+                                            <Text variant="body" weight="medium" style={styles.messageLabel}>
+                                                {selectedCategory === 'other'
+                                                    ? 'Escribe tu mensaje:'
+                                                    : 'Mensaje pre-configurado (puedes editarlo):'}
+                                            </Text>
+                                            <TextInput
+                                                style={[
+                                                    styles.messageInput,
+                                                    {
+                                                        backgroundColor: theme.surface,
+                                                        color: theme.text,
+                                                        borderColor: theme.border,
+                                                    },
+                                                ]}
+                                                value={
+                                                    selectedCategory === 'other'
+                                                        ? customMessage
+                                                        : selectedCategoryData?.message + customMessage
                                                 }
-                                            }
-                                        }}
-                                        placeholder={
-                                            selectedCategory === 'other'
-                                                ? 'Escribe tu mensaje aquí...'
-                                                : 'Agrega más detalles aquí...'
-                                        }
-                                        placeholderTextColor={theme.textSecondary}
-                                        multiline
-                                        numberOfLines={6}
-                                        textAlignVertical="top"
-                                    />
-                                    <Text variant="caption" color={theme.textSecondary} style={styles.helpText}>
-                                        Se abrirá WhatsApp con este mensaje pre-cargado
-                                    </Text>
-                                </View>
+                                                onChangeText={(text) => {
+                                                    if (selectedCategory === 'other') {
+                                                        setCustomMessage(text);
+                                                    } else {
+                                                        // Remover el mensaje base y solo guardar el adicional
+                                                        const baseMessage = selectedCategoryData?.message || '';
+                                                        if (text.startsWith(baseMessage)) {
+                                                            setCustomMessage(text.substring(baseMessage.length));
+                                                        } else {
+                                                            setCustomMessage(text);
+                                                        }
+                                                    }
+                                                }}
+                                                placeholder={
+                                                    selectedCategory === 'other'
+                                                        ? 'Escribe tu mensaje aquí...'
+                                                        : 'Agrega más detalles aquí...'
+                                                }
+                                                placeholderTextColor={theme.textSecondary}
+                                                multiline
+                                                numberOfLines={6}
+                                                textAlignVertical="top"
+                                            />
+                                            <Text variant="caption" color={theme.textSecondary} style={styles.helpText}>
+                                                Se abrirá WhatsApp con este mensaje pre-cargado
+                                            </Text>
+                                        </View>
 
-                                <Button
-                                    title="Abrir WhatsApp"
-                                    variant="primary"
-                                    onPress={handleSend}
-                                    loading={isSending}
-                                    style={styles.sendButton}
-                                    icon={
-                                        <Ionicons 
-                                            name="logo-whatsapp" 
-                                            size={20} 
-                                            color="#FFFFFF" 
-                                            style={{ marginRight: 8 }}
+                                        <Button
+                                            title="Abrir WhatsApp"
+                                            variant="primary"
+                                            onPress={handleSend}
+                                            loading={isSending}
+                                            style={styles.sendButton}
+                                            icon={
+                                                <Ionicons
+                                                    name="logo-whatsapp"
+                                                    size={20}
+                                                    color="#FFFFFF"
+                                                    style={{ marginRight: 8 }}
+                                                />
+                                            }
                                         />
-                                    }
-                                />
-                            </View>
-                        )}
-                    </ScrollView>
+                                    </View>
+                                )}
+
+                                {/* Preguntas Frecuentes (solo si no hay categoría seleccionada) */}
+                                {!selectedCategory && (
+                                    <View style={styles.faqSection}>
+                                        <View style={styles.faqHeader}>
+                                            <Ionicons name="book-outline" size={20} color={theme.primary} />
+                                            <Text variant="h3" weight="bold">Preguntas Frecuentes</Text>
+                                        </View>
+                                        
+                                        {[
+                                            {
+                                                q: '¿Cómo funciona la Garantía TulBox?',
+                                                a: 'Tu pago se mantiene seguro y solo se libera al profesional una vez que confirmas que el trabajo fue realizado a tu satisfacción.'
+                                            },
+                                            {
+                                                q: '¿Los profesionales están verificados?',
+                                                a: 'Sí, todos los profesionales en TulBox pasan por un riguroso proceso de validación de identidad y antecedentes.'
+                                            },
+                                            {
+                                                q: '¿Qué hago si hay un problema con mi servicio?',
+                                                a: 'Puedes iniciar una controversia desde el detalle de tu solicitud o contactar a soporte técnico inmediatamente por WhatsApp.'
+                                            },
+                                            {
+                                                q: '¿Cómo puedo agendar una visita?',
+                                                a: 'Describe tu problema en el buscador, selecciona un profesional destacado y presiona "Solicitar Servicio" para agendar.'
+                                            }
+                                        ].map((faq, index) => (
+                                            <View key={index} style={styles.faqItem}>
+                                                <Text variant="body" weight="bold" style={styles.faqQuestion}>
+                                                    {faq.q}
+                                                </Text>
+                                                <Text variant="caption" color={theme.textSecondary} style={styles.faqAnswer}>
+                                                    {faq.a}
+                                                </Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                            </ScrollView>
                         </View>
                     </KeyboardAvoidingView>
                 </View>
@@ -355,21 +393,22 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
-    keyboardView: {
-        maxHeight: Dimensions.get('window').height * 0.75,
+    modalContentWrapper: {
         width: '100%',
+        maxHeight: Dimensions.get('window').height * 0.9,
+        backgroundColor: 'transparent',
     },
     modalContent: {
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        minHeight: 400,
-        maxHeight: Dimensions.get('window').height * 0.75,
-        paddingBottom: 0,
+        minHeight: 500,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.25,
         shadowRadius: 8,
         elevation: 10,
+        overflow: 'hidden',
     },
     header: {
         flexDirection: 'row',
@@ -461,7 +500,29 @@ const styles = StyleSheet.create({
     sendButton: {
         marginTop: 24,
         marginBottom: 32, // Espacio adicional al final para que sea visible
-        backgroundColor: SUMEE_COLORS.GREEN,
+        backgroundColor: TULBOX_COLORS.GREEN,
+    },
+    faqSection: {
+        marginTop: 32,
+        paddingTop: 24,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
+        gap: 16,
+    },
+    faqHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    faqItem: {
+        gap: 4,
+    },
+    faqQuestion: {
+        fontSize: 14,
+    },
+    faqAnswer: {
+        lineHeight: 18,
     },
 });
 

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { CategoryService } from '@/services/categories';
+import { CategoryService, CATEGORY_ORDER } from '@/services/categories';
 
 export interface ServiceItem {
     id: string;
@@ -56,17 +56,19 @@ export class ServicesService {
     static async getPopularProjects(): Promise<ServiceItem[]> {
         try {
             console.log('[ServicesService] 🚀 Fetching popular projects (fixed price)...');
+            const startTime = Date.now();
             
             // Obtener servicios con precio fijo y que sean populares
+            // Optimización: seleccionar solo campos necesarios y reducir límite
             let { data, error } = await supabase
                 .from('service_catalog')
-                .select('*')
+                .select('id, service_name, discipline, min_price, max_price, price_type, is_popular, completed_count, display_order, description')
                 .eq('is_active', true)
                 .eq('price_type', 'fixed')
                 .eq('is_popular', true)
                 .order('completed_count', { ascending: false, nullsFirst: false })
                 .order('display_order', { ascending: true, nullsFirst: false })
-                .limit(20); // Obtener más para filtrar duplicados
+                .limit(12); // Reducido de 15 a 12 para mejor performance
 
             if (error) {
                 console.error('[ServicesService] ❌ Error fetching popular projects:', error);
@@ -132,7 +134,8 @@ export class ServicesService {
             // Limitar a 10 después de eliminar duplicados
             const result = unique.slice(0, 10);
             
-            console.log('[ServicesService] 📦 Popular projects found:', data.length, '→ unique:', result.length);
+            const loadTime = Date.now() - startTime;
+            console.log('[ServicesService] 📦 Popular projects found:', data.length, '→ unique:', result.length, `(${loadTime}ms)`);
             return result;
         } catch (error) {
             console.error('[ServicesService] 💥 Exception getting popular projects:', error);
@@ -234,92 +237,83 @@ export class ServicesService {
     }
 
     /**
-     * Obtener todos los servicios organizados por grupos
-     * Primero muestra servicios populares de disciplinas prioritarias, luego todos los demás
+     * Agrupa una lista plana de ítems del catálogo por `discipline` (misma lógica que el listado principal).
+     */
+    static groupServicesByDiscipline(services: ServiceItem[]): CategoryGroup[] {
+        if (!services.length) return [];
+
+        const byDiscipline = new Map<string, ServiceItem[]>();
+        for (const row of services) {
+            const raw = row.discipline?.toLowerCase().trim();
+            const key = raw && raw.length > 0 ? raw : 'otros';
+            if (!byDiscipline.has(key)) {
+                byDiscipline.set(key, []);
+            }
+            byDiscipline.get(key)!.push(row);
+        }
+
+        const priority = new Map(CATEGORY_ORDER.map((id, i) => [id, i]));
+
+        const sortKeys = (a: string, b: string) => {
+            const pa = priority.has(a) ? priority.get(a)! : 1000;
+            const pb = priority.has(b) ? priority.get(b)! : 1000;
+            if (pa !== pb) return pa - pb;
+            const na = CategoryService.getDisciplineConfig(a)?.name || a;
+            const nb = CategoryService.getDisciplineConfig(b)?.name || b;
+            return na.localeCompare(nb, 'es', { sensitivity: 'base' });
+        };
+
+        const keys = Array.from(byDiscipline.keys()).sort(sortKeys);
+
+        return keys.map((discipline) => {
+            const config = CategoryService.getDisciplineConfig(discipline);
+            const list = byDiscipline.get(discipline)!;
+            const name =
+                discipline === 'otros'
+                    ? 'Otros'
+                    : config?.name ||
+                      discipline
+                          .split('-')
+                          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                          .join(' ');
+            return {
+                id: discipline,
+                name,
+                icon: (config?.icon || 'layers-outline') as keyof typeof Ionicons.glyphMap,
+                services: list,
+            };
+        });
+    }
+
+    /**
+     * Obtener todos los servicios activos agrupados por disciplina (slug en `service_catalog.discipline`).
+     * Una sola consulta; orden de secciones según prioridad de negocio, luego alfabético por nombre visible.
      */
     static async getAllServicesGrouped(): Promise<CategoryGroup[]> {
         try {
-            console.log('[ServicesService] 🚀 Fetching all services grouped...');
-            
-            const result: CategoryGroup[] = [];
-            
-            // Disciplinas prioritarias con servicios populares primero
-            const priorityDisciplines = [
-                'electricidad',
-                'plomeria',
-                'cctv',
-                'cargadores-electricos',
-                'paneles-solares'
-            ];
-            
-            // 1. PRIMERO: Servicios populares de disciplinas prioritarias
-            for (const discipline of priorityDisciplines) {
-                try {
-                    // Obtener servicios populares de esta disciplina
-                    const { data, error } = await supabase
-                        .from('service_catalog')
-                        .select('*')
-                        .eq('is_active', true)
-                        .eq('discipline', discipline)
-                        .eq('is_popular', true)
-                        .order('completed_count', { ascending: false, nullsFirst: false })
-                        .order('min_price', { ascending: true });
-                    
-                    if (error) {
-                        console.warn(`[ServicesService] ⚠️ Error fetching popular services for ${discipline}:`, error);
-                        continue;
-                    }
-                    
-                    if (data && data.length > 0) {
-                        // Obtener configuración de la disciplina
-                        const config = CategoryService.getDisciplineConfig(discipline);
-                        
-                        result.push({
-                            id: `popular-${discipline}`,
-                            name: config?.name || discipline,
-                            icon: config?.icon || 'star',
-                            services: data,
-                        });
-                        
-                        console.log(`[ServicesService] ✅ Added ${data.length} popular services for ${discipline}`);
-                    }
-                } catch (error) {
-                    console.error(`[ServicesService] 💥 Exception fetching popular services for ${discipline}:`, error);
-                }
+            console.log('[ServicesService] 🚀 Fetching all services grouped by discipline...');
+
+            const { data, error } = await supabase
+                .from('service_catalog')
+                .select('*')
+                .eq('is_active', true)
+                .order('display_order', { ascending: true, nullsFirst: false })
+                .order('completed_count', { ascending: false, nullsFirst: false })
+                .order('min_price', { ascending: true })
+                .limit(2000);
+
+            if (error) {
+                console.error('[ServicesService] ❌ Error fetching catalog for discipline groups:', error);
+                return [];
             }
-            
-            // 2. SEGUNDO: Todos los demás servicios agrupados por categoría
-            const groups = ['mantenimiento', 'tecnologia', 'especializado', 'construccion'];
-            
-            for (const groupId of groups) {
-                const services = await this.getServicesByCategoryGroup(groupId);
-                if (services.length > 0) {
-                    // Filtrar servicios que ya están en los grupos prioritarios
-                    const priorityDisciplineSet = new Set(priorityDisciplines);
-                    const filteredServices = services.filter(service => {
-                        const discipline = service.discipline?.toLowerCase();
-                        // Si es una disciplina prioritaria y es popular, ya está en los grupos prioritarios
-                        if (priorityDisciplineSet.has(discipline) && service.is_popular) {
-                            return false;
-                        }
-                        return true;
-                    });
-                    
-                    if (filteredServices.length > 0) {
-                        const groupConfig = CATEGORY_GROUPS[groupId];
-                        result.push({
-                            id: groupId,
-                            name: groupConfig.name,
-                            icon: groupConfig.icon,
-                            services: filteredServices,
-                        });
-                        
-                        console.log(`[ServicesService] ✅ Added ${filteredServices.length} services for group ${groupId}`);
-                    }
-                }
+
+            if (!data?.length) {
+                console.log('[ServicesService] ⚠️ No active services');
+                return [];
             }
-            
-            console.log(`[ServicesService] ✅ Total groups: ${result.length}`);
+
+            const result = this.groupServicesByDiscipline(data);
+            console.log(`[ServicesService] ✅ Discipline sections: ${result.length}`);
             return result;
         } catch (error) {
             console.error('[ServicesService] 💥 Exception getting all services grouped:', error);

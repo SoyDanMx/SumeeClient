@@ -1,3 +1,8 @@
+/**
+ * Inicio de sesión clásico: correo + contraseña (Supabase).
+ * Apple / Google: integración lista (mismo patrón Supabase + Expo).
+ */
+
 import React, { useState } from 'react';
 import {
     View,
@@ -5,186 +10,272 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    TextInput,
+    TouchableOpacity,
+    Linking,
+    ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
+import * as ExpoLinking from 'expo-linking';
 import { Text } from '@/components/Text';
-import { Button } from '@/components/Button';
-import { TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
+import { mapAuthMessage, signInWithGoogle, signInWithApple } from '@/lib/auth/oauthProviders';
+
+const TULBOX_PURPLE = '#820AD1';
 
 export default function LoginScreen() {
-    const { theme } = useTheme();
-    const { signInWithEmail, signInWithPhone } = useAuth();
     const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [phone, setPhone] = useState('');
-    const [usePhone, setUsePhone] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
+
+    const showApple = Platform.OS === 'ios';
+    const formBusy = isLoading || socialLoading !== null;
 
     const handleLogin = async () => {
-        if (loading) return;
-
+        if (formBusy) return;
         setError(null);
-        setLoading(true);
 
+        if (!email.trim() || !password) {
+            setError('Completa correo y contraseña.');
+            return;
+        }
+
+        setIsLoading(true);
         try {
-            let result;
-            if (usePhone) {
-                if (!phone) {
-                    setError('Por favor ingresa tu número de teléfono');
-                    setLoading(false);
-                    return;
-                }
-                result = await signInWithPhone(phone);
-            } else {
-                if (!email || !password) {
-                    setError('Por favor completa todos los campos');
-                    setLoading(false);
-                    return;
-                }
-                result = await signInWithEmail(email, password);
-            }
+            const { error: signError } = await supabase.auth.signInWithPassword({
+                email: email.trim(),
+                password,
+            });
 
-            if (result.error) {
-                setError(result.error.message || 'Error al iniciar sesión');
+            if (signError) {
+                setError(mapAuthMessage(signError.message));
+                return;
             }
+            // AuthContext: onAuthStateChange carga perfil y redirige.
         } catch (err: any) {
-            setError(err.message || 'Error inesperado');
+            setError(mapAuthMessage(err?.message));
         } finally {
-            setLoading(false);
+            setIsLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        setError(null);
+        const e = email.trim();
+        if (!e) {
+            setError('Escribe tu correo y vuelve a tocar «Olvidaste tu contraseña».');
+            return;
+        }
+        try {
+            const redirectTo = ExpoLinking.createURL('auth/callback');
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(e, { redirectTo });
+            if (resetError) {
+                setError(mapAuthMessage(resetError.message));
+                return;
+            }
+            Alert.alert('Revisa tu correo', 'Si hay una cuenta asociada, recibirás un enlace para restablecer la contraseña.');
+        } catch (err: any) {
+            setError(mapAuthMessage(err?.message));
+        }
+    };
+
+    const handleGoogle = async () => {
+        if (formBusy) return;
+        setError(null);
+        setSocialLoading('google');
+        try {
+            const { error: gErr } = await signInWithGoogle();
+            if (gErr) setError(gErr.message);
+        } finally {
+            setSocialLoading(null);
+        }
+    };
+
+    const handleApple = async () => {
+        if (formBusy) return;
+        setError(null);
+        setSocialLoading('apple');
+        try {
+            const { error: aErr } = await signInWithApple();
+            if (aErr) setError(aErr.message);
+        } finally {
+            setSocialLoading(null);
         }
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             <StatusBar style="dark" />
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.keyboardView}
-            >
+
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <Ionicons name="chevron-back" size={28} color="#1F2937" />
+            </TouchableOpacity>
+
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.header}>
                         <Text variant="h1" weight="bold" style={styles.title}>
-                            Bienvenido
+                            Bienvenido a <Text variant="h1" weight="bold" color={TULBOX_PURPLE}>TulBox</Text>
                         </Text>
-                        <Text variant="body" color={theme.textSecondary} style={styles.subtitle}>
+                        <Text variant="body" color="#6B7280" style={styles.subtitle}>
                             Inicia sesión para continuar
                         </Text>
                     </View>
 
                     <View style={styles.form}>
-                        {error && (
-                            <View style={[styles.errorContainer, { backgroundColor: theme.error + '20' }]}>
-                                <Ionicons name="alert-circle" size={20} color={theme.error} />
-                                <Text variant="caption" color={theme.error} style={styles.errorText}>
-                                    {error}
-                                </Text>
+                        <View style={styles.inputContainer}>
+                            <Text variant="label" weight="medium" style={styles.label}>
+                                Email
+                            </Text>
+                            <View style={styles.inputWrapper}>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="tu@email.com"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    autoComplete="email"
+                                    textContentType="emailAddress"
+                                    editable={!formBusy}
+                                />
                             </View>
-                        )}
-
-                        <View style={styles.toggleContainer}>
-                            <Button
-                                title="Email"
-                                variant={!usePhone ? 'primary' : 'outline'}
-                                size="sm"
-                                onPress={() => setUsePhone(false)}
-                                style={styles.toggleButton}
-                            />
-                            <Button
-                                title="Teléfono"
-                                variant={usePhone ? 'primary' : 'outline'}
-                                size="sm"
-                                onPress={() => setUsePhone(true)}
-                                style={styles.toggleButton}
-                            />
                         </View>
 
-                        {usePhone ? (
-                            <View style={styles.inputContainer}>
-                                <Text variant="label" style={styles.label}>
-                                    Número de teléfono
-                                </Text>
-                                <View style={[styles.inputWrapper, { borderColor: theme.border }]}>
-                                    <Ionicons name="call-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
-                                    <TextInput
-                                        style={[styles.input, { color: theme.text }]}
-                                        placeholder="+52 55 1234 5678"
-                                        placeholderTextColor={theme.textSecondary}
-                                        value={phone}
-                                        onChangeText={setPhone}
-                                        keyboardType="phone-pad"
-                                        autoCapitalize="none"
-                                    />
-                                </View>
+                        <View style={styles.inputContainer}>
+                            <Text variant="label" weight="medium" style={styles.label}>
+                                Contraseña
+                            </Text>
+                            <View style={styles.inputWrapper}>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="••••••••"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry
+                                    autoCapitalize="none"
+                                    autoComplete="password"
+                                    textContentType="password"
+                                    editable={!formBusy}
+                                />
                             </View>
-                        ) : (
-                            <>
-                                <View style={styles.inputContainer}>
-                                    <Text variant="label" style={styles.label}>
-                                        Email
-                                    </Text>
-                                    <View style={[styles.inputWrapper, { borderColor: theme.border }]}>
-                                        <Ionicons name="mail-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
-                                        <TextInput
-                                            style={[styles.input, { color: theme.text }]}
-                                            placeholder="tu@email.com"
-                                            placeholderTextColor={theme.textSecondary}
-                                            value={email}
-                                            onChangeText={setEmail}
-                                            keyboardType="email-address"
-                                            autoCapitalize="none"
-                                            autoComplete="email"
-                                        />
-                                    </View>
-                                </View>
+                        </View>
 
-                                <View style={styles.inputContainer}>
-                                    <Text variant="label" style={styles.label}>
-                                        Contraseña
-                                    </Text>
-                                    <View style={[styles.inputWrapper, { borderColor: theme.border }]}>
-                                        <Ionicons name="lock-closed-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
-                                        <TextInput
-                                            style={[styles.input, { color: theme.text }]}
-                                            placeholder="••••••••"
-                                            placeholderTextColor={theme.textSecondary}
-                                            value={password}
-                                            onChangeText={setPassword}
-                                            secureTextEntry
-                                            autoCapitalize="none"
-                                            autoComplete="password"
-                                        />
-                                    </View>
-                                </View>
-                            </>
-                        )}
+                        {error ? (
+                            <Text variant="caption" style={styles.fieldError}>
+                                {error}
+                            </Text>
+                        ) : null}
 
-                        <Button
-                            title={usePhone ? "Enviar código" : "Iniciar sesión"}
+                        <TouchableOpacity style={styles.forgotPassword} onPress={handleForgotPassword} disabled={formBusy}>
+                            <Text variant="caption" weight="bold" color={TULBOX_PURPLE}>
+                                ¿Olvidaste tu contraseña?
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.primaryButton, formBusy && isLoading && styles.primaryButtonDisabled]}
                             onPress={handleLogin}
-                            loading={loading}
-                            style={styles.loginButton}
-                        />
+                            disabled={formBusy}
+                            activeOpacity={0.85}
+                        >
+                            {isLoading ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text variant="body" weight="bold" style={styles.primaryButtonText}>
+                                    Continuar
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <View style={styles.divider}>
+                            <View style={styles.dividerLine} />
+                            <Text variant="caption" color="#9CA3AF" style={styles.dividerText}>
+                                o
+                            </Text>
+                            <View style={styles.dividerLine} />
+                        </View>
+
+                        <View style={styles.socialButtons}>
+                            {showApple && (
+                                <TouchableOpacity
+                                    style={[styles.socialButton, socialLoading && styles.socialButtonDisabled]}
+                                    onPress={handleApple}
+                                    disabled={formBusy}
+                                    activeOpacity={0.85}
+                                >
+                                    {socialLoading === 'apple' ? (
+                                        <ActivityIndicator color="#1F2937" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="logo-apple" size={22} color="#000000" />
+                                            <Text variant="body" weight="bold" style={styles.socialButtonText}>
+                                                Ingresar con Apple
+                                            </Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            )}
+
+                            <TouchableOpacity
+                                style={[styles.socialButton, socialLoading && styles.socialButtonDisabled]}
+                                onPress={handleGoogle}
+                                disabled={formBusy}
+                                activeOpacity={0.85}
+                            >
+                                {socialLoading === 'google' ? (
+                                    <ActivityIndicator color="#1F2937" />
+                                ) : (
+                                    <>
+                                        <Ionicons name="logo-google" size={22} color="#EA4335" />
+                                        <Text variant="body" weight="bold" style={styles.socialButtonText}>
+                                            Ingresar con Google
+                                        </Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </View>
 
                         <View style={styles.footer}>
-                            <Text variant="caption" color={theme.textSecondary}>
+                            <Text variant="body" color="#6B7280">
                                 ¿No tienes cuenta?{' '}
                             </Text>
-                            <Button
-                                title="Regístrate"
-                                variant="ghost"
-                                size="sm"
-                                onPress={() => router.push('/auth/register')}
-                            />
+                            <TouchableOpacity onPress={() => router.push('/auth/register')} disabled={formBusy}>
+                                <Text variant="body" weight="bold" color={TULBOX_PURPLE}>
+                                    Regístrate
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.legalFooter}>
+                            <TouchableOpacity onPress={() => Linking.openURL('https://tulbox.pro/en/privacidad')}>
+                                <Text variant="caption" color="#9CA3AF">
+                                    Privacidad
+                                </Text>
+                            </TouchableOpacity>
+                            <Text variant="caption" color="#9CA3AF">
+                                {' '}
+                                •{' '}
+                            </Text>
+                            <TouchableOpacity onPress={() => Linking.openURL('https://tulbox.pro/en/terminos')}>
+                                <Text variant="caption" color="#9CA3AF">
+                                    Términos
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
                 </ScrollView>
@@ -196,75 +287,129 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: '#FFFFFF',
+    },
+    backButton: {
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        width: 60,
     },
     keyboardView: {
         flex: 1,
     },
     scrollContent: {
         flexGrow: 1,
-        padding: 20,
+        paddingHorizontal: 24,
+        paddingBottom: 40,
     },
     header: {
-        marginTop: 40,
+        marginTop: 10,
         marginBottom: 32,
     },
     title: {
+        fontSize: 28,
+        color: '#1F2937',
         marginBottom: 8,
     },
     subtitle: {
-        marginTop: 4,
+        fontSize: 16,
     },
     form: {
         flex: 1,
     },
-    errorContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 16,
-        gap: 8,
-    },
-    errorText: {
-        flex: 1,
-    },
-    toggleContainer: {
-        flexDirection: 'row',
-        gap: 12,
-        marginBottom: 24,
-    },
-    toggleButton: {
-        flex: 1,
+    fieldError: {
+        color: '#DC2626',
+        marginTop: -4,
+        marginBottom: 12,
+        lineHeight: 18,
     },
     inputContainer: {
         marginBottom: 20,
     },
     label: {
         marginBottom: 8,
+        color: '#374151',
     },
     inputWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1,
+        minHeight: 56,
+        backgroundColor: '#F3F4F6',
         borderRadius: 12,
-        paddingHorizontal: 12,
-    },
-    inputIcon: {
-        marginRight: 8,
+        paddingHorizontal: 16,
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
     },
     input: {
-        flex: 1,
-        height: 48,
+        fontSize: 16,
+        color: '#1F2937',
+    },
+    forgotPassword: {
+        alignSelf: 'flex-end',
+        marginBottom: 24,
+        paddingVertical: 4,
+    },
+    primaryButton: {
+        backgroundColor: '#111827',
+        minHeight: 56,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 24,
+    },
+    primaryButtonDisabled: {
+        opacity: 0.65,
+    },
+    primaryButtonText: {
+        color: '#FFFFFF',
         fontSize: 16,
     },
-    loginButton: {
-        marginTop: 8,
+    divider: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginBottom: 24,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#E5E7EB',
+    },
+    dividerText: {
+        marginHorizontal: 16,
+    },
+    socialButtons: {
+        gap: 12,
+        marginBottom: 32,
+    },
+    socialButton: {
+        flexDirection: 'row',
+        minHeight: 56,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        backgroundColor: '#FFFFFF',
+    },
+    socialButtonDisabled: {
+        opacity: 0.7,
+    },
+    socialButtonText: {
+        color: '#1F2937',
+        fontSize: 15,
     },
     footer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        flexWrap: 'wrap',
+        marginTop: 8,
+    },
+    legalFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 24,
+        paddingBottom: 8,
     },
 });
-

@@ -20,16 +20,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Text } from '@/components/Text';
 import { Linking } from 'react-native';
 import { trackMarketplaceEvent } from '@/services/marketplace';
+import { Skeleton } from '@/components/Skeleton';
+import { hapticFeedback } from '@/utils/haptics';
 
-// WebView con fallback
-let WebView: any = null;
-try {
-    WebView = require('react-native-webview').WebView;
-} catch (e) {
-    console.warn('[Marketplace] react-native-webview not installed, using browser fallback');
-}
+import { WebView } from 'react-native-webview';
 
-const MARKETPLACE_URL = 'https://sumeeapp.com/marketplace';
+
+const MARKETPLACE_URL = 'https://tulbox.pro/en/marketplace';
 
 export default function MarketplaceScreen() {
     const { theme } = useTheme();
@@ -37,7 +34,7 @@ export default function MarketplaceScreen() {
     const params = useLocalSearchParams<{ category?: string; search?: string; productId?: string }>();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const webViewRef = useRef<WebView>(null);
+    const webViewRef = useRef<any>(null);
     const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const hasLoadedRef = useRef(false);
 
@@ -83,6 +80,7 @@ export default function MarketplaceScreen() {
     const marketplaceUrl = buildMarketplaceUrl();
 
     const handleBack = () => {
+        hapticFeedback.light();
         if (WebView && webViewRef.current) {
             webViewRef.current.goBack();
         } else {
@@ -91,6 +89,7 @@ export default function MarketplaceScreen() {
     };
 
     const handleRefresh = () => {
+        hapticFeedback.light();
         if (WebView && webViewRef.current) {
             webViewRef.current.reload();
         } else {
@@ -100,10 +99,11 @@ export default function MarketplaceScreen() {
     };
 
     const handleOpenInBrowser = () => {
+        hapticFeedback.selection();
         trackMarketplaceEvent('marketplace_opened_in_browser', {
             url: marketplaceUrl,
         });
-        
+
         Linking.openURL(marketplaceUrl).catch((err) => {
             console.error('[Marketplace] Error opening in browser:', err);
             Alert.alert('Error', 'No se pudo abrir el marketplace en el navegador');
@@ -113,12 +113,12 @@ export default function MarketplaceScreen() {
     const handleWebViewError = (syntheticEvent: any) => {
         const { nativeEvent } = syntheticEvent;
         console.error('[Marketplace] WebView error:', nativeEvent);
-        
+
         // Limpiar timeout
         if (loadingTimeoutRef.current) {
             clearTimeout(loadingTimeoutRef.current);
         }
-        
+
         setError('Error al cargar el marketplace. Intenta de nuevo.');
         setLoading(false);
         hasLoadedRef.current = true;
@@ -126,16 +126,16 @@ export default function MarketplaceScreen() {
 
     const handleLoadEnd = () => {
         console.log('[Marketplace] Load end');
-        
+
         // Limpiar timeout
         if (loadingTimeoutRef.current) {
             clearTimeout(loadingTimeoutRef.current);
         }
-        
+
         setLoading(false);
         setError(null);
         hasLoadedRef.current = true;
-        
+
         trackMarketplaceEvent('marketplace_viewed', {
             url: marketplaceUrl,
             hasParams: !!(params.category || params.search || params.productId),
@@ -155,7 +155,7 @@ export default function MarketplaceScreen() {
             loading: navState.loading,
             canGoBack: navState.canGoBack,
         });
-        
+
         // Si la navegación terminó y no está cargando, ocultar loading
         if (!navState.loading && hasLoadedRef.current === false) {
             console.log('[Marketplace] Navigation completed, hiding loader');
@@ -170,7 +170,7 @@ export default function MarketplaceScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
             <StatusBar style="dark" />
-            
+
             {/* Header */}
             <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
                 <TouchableOpacity
@@ -180,7 +180,7 @@ export default function MarketplaceScreen() {
                 >
                     <Ionicons name="arrow-back" size={24} color={theme.text} />
                 </TouchableOpacity>
-                
+
                 <View style={styles.headerContent}>
                     <Text variant="h3" weight="bold" style={styles.headerTitle}>
                         Marketplace
@@ -210,20 +210,26 @@ export default function MarketplaceScreen() {
 
             {/* WebView */}
             <View style={styles.webViewContainer}>
-                {loading && (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={theme.primary} />
-                        <Text variant="body" color={theme.textSecondary} style={styles.loadingText}>
-                            Cargando marketplace...
-                        </Text>
-                        <TouchableOpacity
-                            onPress={handleOpenInBrowser}
-                            style={[styles.openBrowserButton, { borderColor: theme.primary }]}
-                        >
-                            <Text variant="caption" color={theme.primary}>
-                                Abrir en navegador
+                {loading && !error && (
+                    <View style={styles.skeletonContainer}>
+                        <View style={styles.skeletonHeader}>
+                            <Skeleton width="100%" height={24} style={{ marginBottom: 20 }} />
+                        </View>
+                        <View style={styles.skeletonGrid}>
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <View key={i} style={styles.skeletonItem}>
+                                    <Skeleton width="100%" height={120} borderRadius={8} />
+                                    <Skeleton width="80%" height={16} style={{ marginTop: 12 }} />
+                                    <Skeleton width="40%" height={12} style={{ marginTop: 8 }} />
+                                </View>
+                            ))}
+                        </View>
+                        <View style={styles.loadingTextContainer}>
+                            <ActivityIndicator color={theme.primary} size="small" />
+                            <Text variant="caption" color={theme.textSecondary} style={{ marginTop: 8 }}>
+                                Cargando Marketplace de TulBox...
                             </Text>
-                        </TouchableOpacity>
+                        </View>
                     </View>
                 )}
 
@@ -271,7 +277,7 @@ export default function MarketplaceScreen() {
                     <View style={styles.fallbackContainer}>
                         <Ionicons name="construct" size={64} color={theme.primary} />
                         <Text variant="h3" weight="bold" style={styles.fallbackTitle}>
-                            Marketplace Sumee
+                            Marketplace de TulBox
                         </Text>
                         <Text variant="body" color={theme.textSecondary} style={styles.fallbackText}>
                             Abre el marketplace en tu navegador para explorar herramientas y equipos profesionales.
@@ -330,27 +336,29 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: 'transparent',
     },
-    loadingContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    skeletonContainer: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: '#FFFFFF',
+        padding: 16,
         zIndex: 1,
     },
-    loadingText: {
-        marginTop: 12,
-        marginBottom: 16,
+    skeletonGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        gap: 16,
     },
-    openBrowserButton: {
-        marginTop: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 8,
-        borderWidth: 1,
+    skeletonItem: {
+        width: '47%',
+        marginBottom: 20,
+    },
+    skeletonHeader: {
+        marginBottom: 10,
+    },
+    loadingTextContainer: {
+        alignItems: 'center',
+        marginTop: 'auto',
+        marginBottom: 40,
     },
     errorContainer: {
         position: 'absolute',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     StyleSheet,
@@ -97,6 +97,34 @@ export default function AllServicesScreen() {
     const showSearchResults = searchQuery.trim().length > 0;
     const displayServices = showSearchResults ? searchResults : [];
 
+    const browseGroupsByDiscipline = useMemo(() => {
+        const ok = (service: ServiceItem) => {
+            if (selectedFilter === 'all') return true;
+            if (selectedFilter === 'express') return service.service_type === 'express';
+            if (selectedFilter === 'pro') return service.service_type === 'pro';
+            if (selectedFilter === 'fixed') return service.price_type === 'fixed';
+            return true;
+        };
+        return categoryGroups
+            .map((g) => ({
+                ...g,
+                services: g.services.filter(ok),
+            }))
+            .filter((g) => g.services.length > 0);
+    }, [categoryGroups, selectedFilter]);
+
+    const searchGroupsByDiscipline = useMemo(() => {
+        if (!showSearchResults || displayServices.length === 0) return [];
+        const ok = (service: ServiceItem) => {
+            if (selectedFilter === 'all') return true;
+            if (selectedFilter === 'express') return service.service_type === 'express';
+            if (selectedFilter === 'pro') return service.service_type === 'pro';
+            if (selectedFilter === 'fixed') return service.price_type === 'fixed';
+            return true;
+        };
+        return ServicesService.groupServicesByDiscipline(displayServices.filter(ok));
+    }, [showSearchResults, displayServices, selectedFilter]);
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
             <StatusBar style="dark" />
@@ -111,7 +139,7 @@ export default function AllServicesScreen() {
                     <Ionicons name="arrow-back" size={24} color={theme.text} />
                 </TouchableOpacity>
                 <Text variant="h2" weight="bold" style={styles.headerTitle}>
-                    Todos los Servicios
+                    Servicios por disciplina
                 </Text>
                 <View style={styles.headerSpacer} />
             </View>
@@ -223,37 +251,27 @@ export default function AllServicesScreen() {
                 contentContainerStyle={styles.scrollContent}
             >
                 {showSearchResults ? (
-                    // Search Results
-                    <View style={styles.section}>
-                        <Text variant="h3" weight="bold" style={styles.sectionTitle}>
-                            Resultados de búsqueda
-                        </Text>
-                        {isSearching ? (
-                            <View style={styles.loadingContainer}>
-                                <ActivityIndicator size="small" color={theme.primary} />
-                            </View>
-                        ) : displayServices.length === 0 ? (
-                            <View style={styles.emptyContainer}>
-                                <Ionicons name="search-outline" size={64} color={theme.textSecondary} />
-                                <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
-                                    No se encontraron servicios
-                                </Text>
-                            </View>
-                        ) : (
-                            displayServices.map((service) => (
-                                <ServiceCard
-                                    key={service.id}
-                                    service={service}
-                                    onPress={() => handleServicePress(service)}
-                                />
-                            ))
-                        )}
-                    </View>
-                ) : (
                     <>
-                        {/* Category Groups */}
-                        {categoryGroups.map((group) => (
-                            <View key={group.id} style={styles.section}>
+                        <View style={styles.section}>
+                            <Text variant="h3" weight="bold" style={styles.sectionTitle}>
+                                Resultados de búsqueda
+                            </Text>
+                            {isSearching ? (
+                                <View style={styles.loadingContainer}>
+                                    <ActivityIndicator size="small" color={theme.primary} />
+                                </View>
+                            ) : searchGroupsByDiscipline.length === 0 ? (
+                                <View style={styles.emptyContainer}>
+                                    <Ionicons name="search-outline" size={64} color={theme.textSecondary} />
+                                    <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
+                                        No se encontraron servicios
+                                    </Text>
+                                </View>
+                            ) : null}
+                        </View>
+                        {!isSearching &&
+                            searchGroupsByDiscipline.map((group) => (
+                            <View key={`search-${group.id}`} style={styles.section}>
                                 <View style={styles.sectionHeader}>
                                     <View style={styles.groupHeader}>
                                         <Ionicons name={group.icon} size={24} color={theme.primary} />
@@ -270,8 +288,35 @@ export default function AllServicesScreen() {
                                     />
                                 ))}
                             </View>
-                        ))}
+                            ))}
                     </>
+                ) : browseGroupsByDiscipline.length === 0 ? (
+                    <View style={[styles.section, styles.emptyContainer]}>
+                        <Ionicons name="funnel-outline" size={48} color={theme.textSecondary} />
+                        <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
+                            No hay servicios con los filtros seleccionados
+                        </Text>
+                    </View>
+                ) : (
+                    browseGroupsByDiscipline.map((group) => (
+                        <View key={group.id} style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <View style={styles.groupHeader}>
+                                    <Ionicons name={group.icon} size={24} color={theme.primary} />
+                                    <Text variant="h3" weight="bold" style={styles.groupTitle}>
+                                        {group.name}
+                                    </Text>
+                                </View>
+                            </View>
+                            {group.services.map((service) => (
+                                <ServiceCard
+                                    key={service.id}
+                                    service={service}
+                                    onPress={() => handleServicePress(service)}
+                                />
+                            ))}
+                        </View>
+                    ))
                 )}
             </ScrollView>
         </SafeAreaView>
@@ -299,7 +344,7 @@ function ServiceCard({ service, onPress }: { service: ServiceItem; onPress: () =
                             )}
                         </View>
                         {service.description && (
-                            <Text variant="caption" color={theme.textSecondary} numberOfLines={2} style={styles.serviceDescription}>
+                            <Text variant="caption" color={theme.textSecondary} numberOfLines={4} style={styles.serviceDescription}>
                                 {service.description}
                             </Text>
                         )}
@@ -458,6 +503,9 @@ const styles = StyleSheet.create({
     },
     serviceDescription: {
         marginBottom: 12,
+        marginTop: 4,
+        lineHeight: 18,
+        minHeight: 54, // Espacio para aproximadamente 3 líneas
     },
     serviceFooter: {
         flexDirection: 'row',

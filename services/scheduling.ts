@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 
 /**
  * Sistema de Agendamiento para Clientes
- * Alineado con SumeePros - Permite ver y gestionar citas agendadas
+ * Alineado con TulBoxPros - Permite ver y gestionar citas agendadas
  */
 
 export interface Appointment {

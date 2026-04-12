@@ -260,7 +260,9 @@ export function AISearchBar({
                                 );
                             }
                             
-                            router.push(`/service/${aiResult.detected_service.id}?aiDetected=true`);
+                            if (aiResult.detected_service) {
+                                router.push(`/service/${aiResult.detected_service.id}?aiDetected=true`);
+                            }
                         }}
                         activeOpacity={0.8}
                     >

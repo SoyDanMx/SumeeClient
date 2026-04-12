@@ -84,7 +84,7 @@ export default function GenerateEmbeddingsScreen() {
                 >
                     <Ionicons name="arrow-back" size={24} color={theme.text} />
                 </TouchableOpacity>
-                <Text variant="title" weight="bold" style={styles.title}>
+                <Text variant="h2" weight="bold" style={styles.title}>
                     Generar Embeddings
                 </Text>
             </View>

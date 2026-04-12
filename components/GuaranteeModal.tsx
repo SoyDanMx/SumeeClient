@@ -1,5 +1,5 @@
 /**
- * Modal de Garantía Sumee
+ * Modal de Garantía TulBox
  * Muestra información detallada sobre la garantía y protección del cliente
  */
 
@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Text } from '@/components/Text';
 import { Card } from '@/components/Card';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 
 interface GuaranteeModalProps {
     visible: boolean;
@@ -75,117 +75,112 @@ export function GuaranteeModal({ visible, onClose, onOpenSupport }: GuaranteeMod
                     activeOpacity={1}
                     onPress={onClose}
                 />
-                <View style={styles.keyboardView}>
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                        style={{ flex: 1 }}
-                    >
-                        <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                            {/* Header */}
-                            <View style={styles.header}>
-                                <View style={styles.headerIconContainer}>
-                                    <View style={[styles.iconCircle, { backgroundColor: SUMEE_COLORS.PURPLE + '20' }]}>
-                                        <Ionicons name="shield-checkmark" size={32} color={SUMEE_COLORS.PURPLE} />
-                                    </View>
+                <View style={styles.modalContentWrapper}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                        {/* Header */}
+                        <View style={styles.header}>
+                            <View style={styles.headerIconContainer}>
+                                <View style={[styles.iconCircle, { backgroundColor: TULBOX_COLORS.PURPLE + '20' }]}>
+                                    <Ionicons name="shield-checkmark" size={32} color={TULBOX_COLORS.PURPLE} />
                                 </View>
-                                <Text variant="h2" weight="bold" style={styles.headerTitle}>
-                                    Garantía Sumee
+                            </View>
+                            <Text variant="h2" weight="bold" style={styles.headerTitle}>
+                                Garantía TulBox
+                            </Text>
+                            <TouchableOpacity
+                                onPress={onClose}
+                                style={styles.closeButton}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                                <Ionicons name="close" size={24} color={theme.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView
+                            style={styles.scrollView}
+                            contentContainerStyle={styles.scrollContent}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            {/* Mensaje Principal */}
+                            <View style={styles.mainMessage}>
+                                <Text variant="h3" weight="bold" style={styles.mainTitle}>
+                                    Tu tranquilidad es nuestra prioridad
                                 </Text>
-                                <TouchableOpacity
-                                    onPress={onClose}
-                                    style={styles.closeButton}
-                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                >
-                                    <Ionicons name="close" size={24} color={theme.text} />
-                                </TouchableOpacity>
+                                <Text variant="body" color={theme.textSecondary} style={styles.mainDescription}>
+                                    En TulBoxApp, protegemos tu inversión y garantizamos la calidad de cada servicio.
+                                    Trabajamos solo con profesionales verificados y ofrecemos protección completa
+                                    desde el inicio hasta la finalización del proyecto.
+                                </Text>
                             </View>
 
-                            <ScrollView
-                                style={styles.scrollView}
-                                contentContainerStyle={styles.scrollContent}
-                                showsVerticalScrollIndicator={false}
-                                keyboardShouldPersistTaps="handled"
-                            >
-                                {/* Mensaje Principal */}
-                                <View style={styles.mainMessage}>
-                                    <Text variant="h3" weight="bold" style={styles.mainTitle}>
-                                        Tu tranquilidad es nuestra prioridad
-                                    </Text>
-                                    <Text variant="body" color={theme.textSecondary} style={styles.mainDescription}>
-                                        En SumeeApp, protegemos tu inversión y garantizamos la calidad de cada servicio. 
-                                        Trabajamos solo con profesionales verificados y ofrecemos protección completa 
-                                        desde el inicio hasta la finalización del proyecto.
-                                    </Text>
-                                </View>
-
-                                {/* Características */}
-                                <View style={styles.featuresContainer}>
-                                    {GUARANTEE_FEATURES.map((feature, index) => (
-                                        <Card
-                                            key={index}
-                                            variant="elevated"
-                                            style={[styles.featureCard, { backgroundColor: theme.surface }]}
-                                        >
-                                            <View style={styles.featureContent}>
-                                                <View
-                                                    style={[
-                                                        styles.featureIconContainer,
-                                                        { backgroundColor: SUMEE_COLORS.PURPLE + '15' },
-                                                    ]}
-                                                >
-                                                    <Ionicons
-                                                        name={feature.icon}
-                                                        size={24}
-                                                        color={SUMEE_COLORS.PURPLE}
-                                                    />
-                                                </View>
-                                                <View style={styles.featureTextContainer}>
-                                                    <Text variant="body" weight="bold" style={styles.featureTitle}>
-                                                        {feature.title}
-                                                    </Text>
-                                                    <Text variant="caption" color={theme.textSecondary}>
-                                                        {feature.description}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                        </Card>
-                                    ))}
-                                </View>
-
-                                {/* Información Adicional */}
-                                <View style={styles.additionalInfo}>
+                            {/* Características */}
+                            <View style={styles.featuresContainer}>
+                                {GUARANTEE_FEATURES.map((feature, index) => (
                                     <Card
+                                        key={index}
                                         variant="elevated"
-                                        style={[styles.infoCard, { backgroundColor: SUMEE_COLORS.PURPLE + '10' }]}
+                                        style={[styles.featureCard, { backgroundColor: theme.surface }]}
                                     >
-                                        <View style={styles.infoContent}>
-                                            <Ionicons
-                                                name="information-circle"
-                                                size={20}
-                                                color={SUMEE_COLORS.PURPLE}
-                                            />
-                                            <Text variant="caption" style={[styles.infoText, { color: SUMEE_COLORS.PURPLE }]}>
-                                                La garantía aplica a todos los servicios contratados a través de SumeeApp. 
-                                                Para más detalles, consulta nuestros Términos y Condiciones.
-                                            </Text>
+                                        <View style={styles.featureContent}>
+                                            <View
+                                                style={[
+                                                    styles.featureIconContainer,
+                                                    { backgroundColor: TULBOX_COLORS.PURPLE + '15' },
+                                                ]}
+                                            >
+                                                <Ionicons
+                                                    name={feature.icon}
+                                                    size={24}
+                                                    color={TULBOX_COLORS.PURPLE}
+                                                />
+                                            </View>
+                                            <View style={styles.featureTextContainer}>
+                                                <Text variant="body" weight="bold" style={styles.featureTitle}>
+                                                    {feature.title}
+                                                </Text>
+                                                <Text variant="caption" color={theme.textSecondary}>
+                                                    {feature.description}
+                                                </Text>
+                                            </View>
                                         </View>
                                     </Card>
-                                </View>
+                                ))}
+                            </View>
 
-                                {/* Botón de Contacto */}
-                                <TouchableOpacity
-                                    style={[styles.contactButton, { backgroundColor: SUMEE_COLORS.PURPLE }]}
-                                    activeOpacity={0.8}
-                                    onPress={handleContactPress}
+                            {/* Información Adicional */}
+                            <View style={styles.additionalInfo}>
+                                <Card
+                                    variant="elevated"
+                                    style={[styles.infoCard, { backgroundColor: TULBOX_COLORS.PURPLE + '10' }]}
                                 >
-                                    <Ionicons name="help-circle-outline" size={20} color="#FFFFFF" />
-                                    <Text variant="body" weight="bold" color="#FFFFFF">
-                                        ¿Tienes dudas? Contáctanos
-                                    </Text>
-                                </TouchableOpacity>
-                            </ScrollView>
-                        </View>
-                    </KeyboardAvoidingView>
+                                    <View style={styles.infoContent}>
+                                        <Ionicons
+                                            name="information-circle"
+                                            size={20}
+                                            color={TULBOX_COLORS.PURPLE}
+                                        />
+                                        <Text variant="caption" style={[styles.infoText, { color: TULBOX_COLORS.PURPLE }]}>
+                                            La garantía aplica a todos los servicios contratados a través de TulBoxApp.
+                                            Para más detalles, consulta nuestros Términos y Condiciones.
+                                        </Text>
+                                    </View>
+                                </Card>
+                            </View>
+
+                            {/* Botón de Contacto */}
+                            <TouchableOpacity
+                                style={[styles.contactButton, { backgroundColor: TULBOX_COLORS.PURPLE }]}
+                                activeOpacity={0.8}
+                                onPress={handleContactPress}
+                            >
+                                <Ionicons name="help-circle-outline" size={20} color="#FFFFFF" />
+                                <Text variant="body" weight="bold" color="#FFFFFF">
+                                    ¿Tienes dudas? Contáctanos
+                                </Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
                 </View>
             </View>
         </Modal>
@@ -202,21 +197,21 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
-    keyboardView: {
-        maxHeight: Dimensions.get('window').height * 0.75,
+    modalContentWrapper: {
         width: '100%',
+        maxHeight: Dimensions.get('window').height * 0.85,
     },
     modalContent: {
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        minHeight: 400,
-        maxHeight: Dimensions.get('window').height * 0.75,
-        paddingBottom: 0,
+        minHeight: 500,
+        paddingBottom: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.25,
         shadowRadius: 8,
         elevation: 10,
+        overflow: 'hidden',
     },
     header: {
         padding: 20,

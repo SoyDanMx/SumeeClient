@@ -7,6 +7,7 @@ import {
     StyleSheet,
     Dimensions,
     ActivityIndicator,
+    RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,9 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Text } from '@/components/Text';
-import { SearchBar } from '@/components/SearchBar';
-import { AISearchBar } from '@/components/AISearchBar';
-import { AISearchService, AISearchResult } from '@/services/aiSearch';
+import { AIDiagnosticSearch } from '@/components/AIDiagnosticSearch';
 import { ServiceCard } from '@/components/ServiceCard';
 import { ProfessionalCard } from '@/components/ProfessionalCard';
 import { CategoryService, Category } from '@/services/categories';
@@ -29,129 +28,128 @@ import { getServiceIconConfig, extractServiceDetails } from '@/utils/serviceIcon
 import { getFeaturedProfessionals, FeaturedProfessional, formatDistance } from '@/services/professionals';
 import { openWhatsApp } from '@/utils/whatsapp';
 import { MarketplaceBanner } from '@/components/MarketplaceBanner';
+import { SupportModal } from '@/components/SupportModal';
+import { TULBOX_CONFIG } from '@/constants/Config';
+import { Skeleton } from '@/components/Skeleton';
+import { hapticFeedback } from '@/utils/haptics';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
     const { theme } = useTheme();
-    const { user, profile, reloadProfile } = useAuth();
+    const { user } = useAuth();
     const router = useRouter();
-    const [searchQuery, setSearchQuery] = useState('');
+
     const [categories, setCategories] = useState<Category[]>([]);
     const [loadingCategories, setLoadingCategories] = useState(true);
-    const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
-    const [loadingLocation, setLoadingLocation] = useState(true);
     const [popularProjects, setPopularProjects] = useState<ServiceItem[]>([]);
     const [loadingPopularProjects, setLoadingPopularProjects] = useState(true);
+    const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
+    const [loadingLocation, setLoadingLocation] = useState(true);
     const [featuredProfessionals, setFeaturedProfessionals] = useState<FeaturedProfessional[]>([]);
     const [loadingProfessionals, setLoadingProfessionals] = useState(true);
 
-    useEffect(() => {
-        async function loadCategories() {
-            setLoadingCategories(true);
-            try {
-                console.log('[HomeScreen] 🚀 Loading categories...');
-                const cats = await CategoryService.getCategories();
-                console.log('[HomeScreen] ✅ Categories loaded:', cats.length);
-                setCategories(cats || []);
-            } catch (error) {
-                console.error('[HomeScreen] ❌ Error loading categories:', error);
-                setCategories([]);
-            } finally {
-                setLoadingCategories(false);
-            }
+    const [showSupportModal, setShowSupportModal] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const onRefresh = React.useCallback(async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([
+                loadCategories(),
+                loadPopularProjects(),
+                user ? loadLocation() : Promise.resolve(),
+                loadFeaturedProfessionals(),
+            ]);
+        } catch (error) {
+            console.error('[HomeScreen] Error refreshing:', error);
+        } finally {
+            setRefreshing(false);
         }
-        loadCategories();
-    }, []);
+    }, [user, currentLocation]);
+
+    async function loadCategories() {
+        setLoadingCategories(true);
+        try {
+            const cats = await CategoryService.getCategories();
+            setCategories(cats || []);
+        } catch (error) {
+            console.error('[HomeScreen] ❌ Error loading categories:', error);
+            setCategories([]);
+        } finally {
+            setLoadingCategories(false);
+        }
+    }
+
+    async function loadPopularProjects() {
+        setLoadingPopularProjects(true);
+        try {
+            const projects = await ServicesService.getPopularProjects();
+            setPopularProjects(projects || []);
+        } catch (error) {
+            console.error('[HomeScreen] ❌ Error loading popular projects:', error);
+            setPopularProjects([]);
+        } finally {
+            setLoadingPopularProjects(false);
+        }
+    }
+
+    async function loadLocation() {
+        if (!user) {
+            setLoadingLocation(false);
+            return;
+        }
+
+        try {
+            setLoadingLocation(true);
+            const savedLocation = await LocationService.getSavedLocation(user.id);
+            if (savedLocation) {
+                setCurrentLocation(savedLocation);
+            } else {
+                const location = await LocationService.getAndSaveLocation(user.id);
+                if (location) {
+                    setCurrentLocation(location);
+                }
+            }
+        } catch (error) {
+            console.error('[HomeScreen] Error loading location:', error);
+        } finally {
+            setLoadingLocation(false);
+        }
+    }
+
+    async function loadFeaturedProfessionals() {
+        setLoadingProfessionals(true);
+        try {
+            const userLat = currentLocation?.latitude;
+            const userLng = currentLocation?.longitude;
+            const professionals = await getFeaturedProfessionals(userLat, userLng, 8);
+            setFeaturedProfessionals(professionals || []);
+        } catch (error) {
+            console.error('[HomeScreen] ❌ Error loading featured professionals:', error);
+            setFeaturedProfessionals([]);
+        } finally {
+            setLoadingProfessionals(false);
+        }
+    }
 
     useEffect(() => {
-        async function loadPopularProjects() {
-            setLoadingPopularProjects(true);
-            try {
-                console.log('[HomeScreen] 🚀 Loading popular projects...');
-                const projects = await ServicesService.getPopularProjects();
-                console.log('[HomeScreen] ✅ Popular projects loaded:', projects.length);
-                setPopularProjects(projects || []);
-            } catch (error) {
-                console.error('[HomeScreen] ❌ Error loading popular projects:', error);
-                setPopularProjects([]);
-            } finally {
-                setLoadingPopularProjects(false);
-            }
-        }
+        loadCategories();
         loadPopularProjects();
     }, []);
 
     useEffect(() => {
-        async function loadLocation() {
-            if (!user) {
-                setLoadingLocation(false);
-                return;
-            }
-
-            try {
-                setLoadingLocation(true);
-                // Intentar cargar ubicación guardada
-                const savedLocation = await LocationService.getSavedLocation(user.id);
-                if (savedLocation) {
-                    setCurrentLocation(savedLocation);
-                } else {
-                    // Si no hay ubicación guardada, intentar obtenerla
-                    const location = await LocationService.getAndSaveLocation(user.id);
-                    if (location) {
-                        setCurrentLocation(location);
-                    }
-                }
-            } catch (error) {
-                console.error('[HomeScreen] Error loading location:', error);
-            } finally {
-                setLoadingLocation(false);
-            }
-        }
         loadLocation();
     }, [user]);
 
     useEffect(() => {
-        async function loadFeaturedProfessionals() {
-            setLoadingProfessionals(true);
-            try {
-                const userLat = currentLocation?.latitude;
-                const userLng = currentLocation?.longitude;
-                
-                console.log('[HomeScreen] 🚀 Loading featured professionals...', {
-                    hasLocation: !!currentLocation,
-                    lat: userLat,
-                    lng: userLng,
-                });
-                
-                const professionals = await getFeaturedProfessionals(
-                    userLat,
-                    userLng,
-                    10 // Limitar a 10 profesionales destacados
-                );
-                
-                console.log('[HomeScreen] ✅ Professionals loaded:', professionals.length);
-                if (professionals.length > 0) {
-                    console.log('[HomeScreen] First professional:', professionals[0].full_name);
-                }
-                
-                setFeaturedProfessionals(professionals || []);
-            } catch (error) {
-                console.error('[HomeScreen] ❌ Error loading featured professionals:', error);
-                setFeaturedProfessionals([]);
-            } finally {
-                setLoadingProfessionals(false);
-            }
-        }
-        
-        // Cargar profesionales incluso sin ubicación
         loadFeaturedProfessionals();
     }, [currentLocation]);
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
             <StatusBar style="dark" />
-            
+
             {/* 1. HEADER: Ubicación y Perfil */}
             <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
                 <TouchableOpacity
@@ -182,18 +180,39 @@ export default function HomeScreen() {
                         )}
                     </View>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                    style={[styles.notificationButton, { backgroundColor: theme.surface }]}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons name="notifications-outline" size={24} color={theme.text} />
-                </TouchableOpacity>
+                <View style={styles.headerActions}>
+                    <TouchableOpacity
+                        style={[styles.notificationButton, { backgroundColor: theme.surface, marginRight: 8 }]}
+                        activeOpacity={0.7}
+                        onPress={() => setShowSupportModal(true)}
+                    >
+                        <Ionicons name="help-circle-outline" size={24} color={theme.text} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.notificationButton, { backgroundColor: theme.surface }]}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                            // TODO: Add notification screen/modal
+                            console.log('Notifications pressed');
+                        }}
+                    >
+                        <Ionicons name="notifications-outline" size={24} color={theme.text} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            <ScrollView 
-                showsVerticalScrollIndicator={false} 
+            <ScrollView
+                showsVerticalScrollIndicator={false}
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[theme.primary]}
+                        tintColor={theme.primary}
+                    />
+                }
             >
                 {/* 2. HERO: Bienvenida y Búsqueda (Estilo Angi) */}
                 <View style={styles.heroSection}>
@@ -204,32 +223,46 @@ export default function HomeScreen() {
                         Encuentra expertos certificados en minutos.
                     </Text>
 
-                    {/* Barra de Búsqueda con IA */}
+                    {/* Buscador de diagnóstico con IA (backend Gemini; ver services/aiDiagnostic.ts) */}
                     <View style={styles.searchWrapper}>
-                        <TouchableOpacity
-                            onPress={() => router.push('/search')}
-                            activeOpacity={0.7}
-                        >
-                            <AISearchBar
-                                placeholder="Describe tu problema... Ej: 'Tengo una fuga de agua'"
-                                onServiceDetected={(result) => {
-                                    if (result.detected_service) {
-                                        // Navegar al servicio detectado con datos pre-llenados
-                                        router.push(`/service/${result.detected_service.id}?aiDetected=true&preFilled=${encodeURIComponent(JSON.stringify(result.pre_filled_data))}`);
-                                    }
-                                }}
-                                autoAnalyze={false} // No analizar automáticamente en HomeScreen, solo al hacer click
-                                minLength={10}
-                            />
-                        </TouchableOpacity>
+                        <AIDiagnosticSearch />
                     </View>
+                </View>
+
+                {/* FILTROS RÁPIDOS (Chips horizontales) */}
+                <View style={styles.quickFiltersSection}>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.quickFiltersContent}
+                    >
+                        {TULBOX_CONFIG.QUICK_FILTERS.map((filter, index) => (
+                            <TouchableOpacity
+                                key={index}
+                                style={[styles.filterChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                                onPress={() => {
+                                    hapticFeedback.selection();
+                                    router.push({
+                                        pathname: '/professionals',
+                                        params: { specialty: filter.specialty }
+                                    });
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name={filter.icon as any} size={16} color={theme.primary} />
+                                <Text variant="caption" weight="medium" style={styles.filterChipText}>
+                                    {filter.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
                 </View>
 
                 {/* 3. CATEGORÍAS PRINCIPALES (Grid) */}
                 <View style={styles.categoriesSection}>
                     <View style={styles.sectionHeader}>
                         <Text variant="h3" weight="bold">Servicios</Text>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             activeOpacity={0.7}
                             onPress={() => router.push('/services')}
                         >
@@ -238,30 +271,43 @@ export default function HomeScreen() {
                     </View>
 
                     {loadingCategories ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="small" color={theme.primary} />
-                            <Text variant="caption" color={theme.textSecondary} style={styles.loadingText}>
-                                Cargando servicios...
+                        <View style={styles.categoriesGrid}>
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <View key={i} style={styles.categoryItem}>
+                                    <Skeleton width={64} height={64} borderRadius={16} />
+                                    <Skeleton width={50} height={12} style={{ marginTop: 8 }} />
+                                </View>
+                            ))}
+                        </View>
+                    ) : categories.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="construct-outline" size={48} color={theme.textSecondary} />
+                            <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
+                                No hay servicios disponibles en este momento
                             </Text>
                         </View>
                     ) : (
                         <View style={styles.categoriesGrid}>
                             {categories.map((cat) => (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     key={cat.id}
                                     style={styles.categoryItem}
                                     activeOpacity={0.7}
                                     onPress={() => router.push(`/service-category/${cat.id}`)}
                                 >
-                                    <View 
+                                    <View
                                         style={[
                                             styles.categoryIconContainer,
                                             { backgroundColor: cat.color }
                                         ]}
                                     >
-                                        <Ionicons name={cat.icon} size={28} color={cat.iconColor} />
+                                        {cat.image ? (
+                                            <Image source={cat.image} style={styles.categoryImage} />
+                                        ) : (
+                                            <Ionicons name={cat.icon as any} size={28} color={cat.iconColor} />
+                                        )}
                                     </View>
-                                    <Text variant="caption" weight="medium" style={styles.categoryName}>
+                                    <Text variant="caption" weight="medium" style={styles.categoryName} numberOfLines={1}>
                                         {cat.name}
                                     </Text>
                                     {cat.minPrice && (
@@ -280,7 +326,7 @@ export default function HomeScreen() {
                             style={[styles.customServiceCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
                             onPress={() => {
                                 const message = 'Hola, necesito ayuda con un servicio que no esta en su plataforma.';
-                                openWhatsApp('+5215636741156', message);
+                                openWhatsApp(TULBOX_CONFIG.SUPPORT.WHATSAPP, message);
                             }}
                             activeOpacity={0.8}
                         >
@@ -309,7 +355,7 @@ export default function HomeScreen() {
                                 </Text>
                             )}
                         </View>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             activeOpacity={0.7}
                             onPress={() => router.push('/professionals')}
                         >
@@ -317,12 +363,20 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                     </View>
                     {loadingProfessionals ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="small" color={theme.primary} />
-                            <Text variant="caption" color={theme.textSecondary} style={styles.loadingText}>
-                                Cargando profesionales...
-                            </Text>
-                        </View>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.professionalsScrollContent}>
+                            {[1, 2, 3].map((i) => (
+                                <View key={i} style={[styles.professionalCardWrapper, { backgroundColor: theme.surface, borderRadius: 16, padding: 16 }]}>
+                                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                                        <Skeleton width={60} height={60} borderRadius={30} />
+                                        <View style={{ flex: 1, gap: 8 }}>
+                                            <Skeleton width="80%" height={16} />
+                                            <Skeleton width="50%" height={12} />
+                                        </View>
+                                    </View>
+                                    <Skeleton width="100%" height={40} borderRadius={8} style={{ marginTop: 16 }} />
+                                </View>
+                            ))}
+                        </ScrollView>
                     ) : featuredProfessionals.length === 0 ? (
                         <View style={styles.emptyContainer}>
                             <Ionicons name="people-outline" size={48} color={theme.textSecondary} />
@@ -340,7 +394,7 @@ export default function HomeScreen() {
                             {featuredProfessionals.map((professional) => {
                                 const rating = professional.calificacion_promedio || 0;
                                 const reviewCount = professional.review_count || 0;
-                                
+
                                 console.log('[HomeScreen] Rendering professional:', professional.full_name, {
                                     hasPhoto: !!professional.avatar_url,
                                     hasWhatsApp: !!professional.whatsapp,
@@ -349,7 +403,7 @@ export default function HomeScreen() {
                                     rating: rating,
                                     reviewCount: reviewCount,
                                 });
-                                
+
                                 return (
                                     <View key={professional.user_id} style={styles.professionalCardWrapper}>
                                         <ProfessionalCard
@@ -376,7 +430,7 @@ export default function HomeScreen() {
                 {popularProjects.length > 0 && (
                     <View style={styles.popularSection}>
                         <View style={styles.popularHeader}>
-                            <Text variant="h2" weight="bold" style={styles.popularTitle}>
+                            <Text variant="h3" weight="bold" style={styles.popularTitle}>
                                 Proyectos Populares
                             </Text>
                             <Text variant="body" color={theme.textSecondary} style={styles.popularDescription}>
@@ -395,16 +449,16 @@ export default function HomeScreen() {
                                 </Text>
                             </View>
                         ) : (
-                            <ScrollView 
-                                horizontal 
-                                showsHorizontalScrollIndicator={false} 
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
                                 style={styles.projectsScroll}
                                 contentContainerStyle={styles.projectsScrollContent}
                             >
                                 {popularProjects.map((project) => {
                                     const iconConfig = getServiceIconConfig(project.discipline);
                                     const details = extractServiceDetails(project.service_name, project.description);
-                                    
+
                                     return (
                                         <PopularProjectCard
                                             key={project.id}
@@ -432,6 +486,11 @@ export default function HomeScreen() {
                 </View>
 
             </ScrollView>
+
+            <SupportModal
+                visible={showSupportModal}
+                onClose={() => setShowSupportModal(false)}
+            />
         </SafeAreaView>
     );
 }
@@ -465,11 +524,15 @@ const styles = StyleSheet.create({
         padding: 8,
         borderRadius: 20,
     },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     scrollView: {
         flex: 1,
     },
     scrollContent: {
-        paddingBottom: 40,
+        paddingBottom: 100,
     },
     heroSection: {
         paddingHorizontal: 20,
@@ -484,6 +547,26 @@ const styles = StyleSheet.create({
     },
     searchWrapper: {
         marginTop: 8,
+    },
+    quickFiltersSection: {
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    quickFiltersContent: {
+        paddingHorizontal: 20,
+        gap: 10,
+    },
+    filterChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        gap: 6,
+    },
+    filterChipText: {
+        fontSize: 13,
     },
     categoriesSection: {
         paddingHorizontal: 20,
@@ -512,6 +595,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 8,
+        overflow: 'hidden', // Importante para que la imagen respete el border radius
+    },
+    categoryImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
     categoryName: {
         textAlign: 'center',

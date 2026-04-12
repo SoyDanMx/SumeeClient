@@ -1,11 +1,11 @@
 /**
- * Colores de Marca Sumee
- * Sincronizados con SumeePros y Sumeeapp-B para consistencia
+ * Colores de Marca TulBox
+ * Sincronizados con TulBoxPros y TulBoxapp-B para consistencia
  */
 
-export const SUMEE_COLORS = {
+export const TULBOX_COLORS = {
   // Colores Principales
-  PURPLE: '#820AD1', // Color oficial Sumee (RGB: 130, 10, 209)
+  PURPLE: '#820AD1', // Color oficial TulBox (RGB: 130, 10, 209)
   PURPLE_DARK: '#5D0780', // Versión más oscura
   PURPLE_LIGHT: '#A855F7', // Versión más clara
   GREEN: '#10B981',
@@ -34,5 +34,5 @@ export const SUMEE_COLORS = {
   CATEGORY_PAINT: { bg: '#F3E8FF', icon: '#9333EA' },
 };
 
-export default SUMEE_COLORS;
+export default TULBOX_COLORS;
 

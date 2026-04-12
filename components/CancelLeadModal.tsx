@@ -6,6 +6,10 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
+    TextInput,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -62,110 +66,139 @@ export function CancelLeadModal({ visible, lead, onClose, onConfirm }: CancelLea
             transparent={true}
             onRequestClose={onClose}
         >
-            <SafeAreaView style={[styles.modalContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-                <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-                    {/* Header con advertencia */}
-                    <View style={[styles.header, { backgroundColor: '#FEE2E2' }]}>
-                        <Ionicons name="warning" size={32} color="#DC2626" />
-                        <Text variant="h2" weight="bold" style={{ color: '#DC2626', marginTop: 12 }}>
-                            Cancelar Servicio
-                        </Text>
-                    </View>
-
-                    <View style={styles.content}>
-                        {/* Información del servicio */}
-                        <View style={styles.serviceInfo}>
-                            <Text variant="body" weight="medium" style={styles.serviceLabel}>
-                                Servicio:
-                            </Text>
-                            <Text variant="body" style={styles.serviceName}>
-                                {lead.servicio_solicitado || 'Servicio'}
+            <SafeAreaView style={styles.overlay}>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.keyboardView}
+                >
+                    <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+                        {/* Header con advertencia */}
+                        <View style={[styles.header, { backgroundColor: '#FEE2E2' }]}>
+                            <Ionicons name="warning" size={32} color="#DC2626" />
+                            <Text variant="h2" weight="bold" style={{ color: '#DC2626', marginTop: 12 }}>
+                                Cancelar Servicio
                             </Text>
                         </View>
 
-                        {/* Advertencia si hay profesional asignado */}
-                        {hasProfessional && (
-                            <View style={[styles.warningBox, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
-                                <Ionicons name="information-circle" size={20} color="#D97706" />
-                                <Text variant="body" style={{ color: '#92400E', marginLeft: 8, flex: 1 }}>
-                                    Este servicio tiene un profesional asignado. Al cancelar, el profesional será notificado.
-                                </Text>
-                            </View>
-                        )}
+                        <ScrollView style={styles.scrollView} bounces={false} showsVerticalScrollIndicator={false}>
+                            <View style={styles.content}>
+                                {/* Información del servicio */}
+                                <View style={styles.serviceInfo}>
+                                    <Text variant="caption" weight="bold" color={theme.textSecondary} style={styles.label}>
+                                        SERVICIO:
+                                    </Text>
+                                    <Text variant="body" weight="medium" style={styles.serviceName}>
+                                        {lead.servicio_solicitado || 'Servicio'}
+                                    </Text>
+                                </View>
 
-                        {/* Mensaje principal */}
-                        <Text variant="body" style={styles.message}>
-                            {hasProfessional
-                                ? '¿Estás seguro de que deseas cancelar este servicio? El profesional asignado será notificado y el servicio se marcará como cancelado.'
-                                : '¿Estás seguro de que deseas cancelar este servicio? Esta acción no se puede deshacer.'}
-                        </Text>
+                                {/* Advertencia si hay profesional asignado */}
+                                {!!hasProfessional && (
+                                    <View style={[styles.warningBox, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
+                                        <Ionicons name="information-circle" size={20} color="#D97706" />
+                                        <Text variant="body" style={{ color: '#92400E', marginLeft: 8, flex: 1 }}>
+                                            Este servicio tiene un profesional asignado. Al cancelar, el profesional será notificado.
+                                        </Text>
+                                    </View>
+                                )}
 
-                        {/* Campo opcional de razón */}
-                        <View style={styles.reasonField}>
-                            <Text variant="body" weight="medium" style={styles.reasonLabel}>
-                                Razón de cancelación (opcional):
-                            </Text>
-                            <View style={[styles.reasonInputContainer, { borderColor: theme.border }]}>
-                                <Ionicons name="chatbubble-outline" size={20} color={theme.textSecondary} style={styles.reasonIcon} />
-                                <Text variant="body" color={theme.textSecondary} style={styles.reasonPlaceholder}>
-                                    Ej: Ya no necesito el servicio, encontré otra solución, etc.
+                                {/* Mensaje principal */}
+                                <Text variant="body" style={styles.message}>
+                                    {!!hasProfessional
+                                        ? '¿Estás seguro de que deseas cancelar este servicio? El profesional asignado será notificado y el servicio se marcará como cancelado.'
+                                        : '¿Estás seguro de que deseas cancelar este servicio? Esta acción no se puede deshacer.'}
                                 </Text>
+
+                                {/* Campo opcional de razón */}
+                                <View style={styles.reasonField}>
+                                    <Text variant="body" weight="medium" style={styles.reasonLabel}>
+                                        Razón de cancelación (opcional):
+                                    </Text>
+                                    <View style={[styles.reasonInputContainer, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                                        <Ionicons name="chatbubble-outline" size={20} color={theme.textSecondary} style={styles.reasonIcon} />
+                                        <TextInput
+                                            style={[styles.reasonInput, { color: theme.text }]}
+                                            placeholder="Ej: Ya no necesito el servicio..."
+                                            placeholderTextColor={theme.textSecondary}
+                                            value={reason}
+                                            onChangeText={setReason}
+                                            multiline
+                                            maxLength={200}
+                                        />
+                                    </View>
+                                </View>
                             </View>
+                        </ScrollView>
+
+                        {/* Footer con botones */}
+                        <View style={[styles.footer, { borderTopColor: theme.border }]}>
+                            <Button
+                                title="No, mantener"
+                                onPress={handleCancel}
+                                variant="outline"
+                                style={styles.footerButton}
+                                disabled={isCancelling}
+                            />
+                            <Button
+                                title={isCancelling ? 'Cancelando...' : 'Sí, cancelar'}
+                                onPress={handleConfirm}
+                                variant="danger"
+                                style={styles.footerButton}
+                                disabled={isCancelling}
+                            />
                         </View>
                     </View>
-
-                    {/* Footer con botones */}
-                    <View style={[styles.footer, { borderTopColor: theme.border }]}>
-                        <Button
-                            title="No, mantener"
-                            onPress={handleCancel}
-                            variant="outline"
-                            style={styles.footerButton}
-                            disabled={isCancelling}
-                        />
-                        <Button
-                            title={isCancelling ? 'Cancelando...' : 'Sí, cancelar'}
-                            onPress={handleConfirm}
-                            variant="danger"
-                            style={styles.footerButton}
-                            disabled={isCancelling}
-                        />
-                    </View>
-                </View>
+                </KeyboardAvoidingView>
             </SafeAreaView>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    modalContainer: {
+    overlay: {
         flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
     },
-    modalContent: {
-        borderRadius: 20,
+    keyboardView: {
         width: '100%',
         maxWidth: 500,
+    },
+    modalContent: {
+        borderRadius: 24,
+        width: '100%',
+        maxHeight: '85%',
         overflow: 'hidden',
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
     },
     header: {
         alignItems: 'center',
         padding: 24,
     },
+    scrollView: {
+        maxHeight: 400,
+    },
     content: {
-        padding: 20,
+        padding: 24,
     },
     serviceInfo: {
         marginBottom: 20,
+        backgroundColor: '#F8FAFC',
+        padding: 12,
+        borderRadius: 12,
     },
-    serviceLabel: {
+    label: {
         marginBottom: 4,
+        letterSpacing: 0.5,
     },
     serviceName: {
-        fontSize: 18,
-        fontWeight: '600',
+        fontSize: 16,
     },
     warningBox: {
         flexDirection: 'row',
@@ -178,26 +211,32 @@ const styles = StyleSheet.create({
     message: {
         marginBottom: 20,
         lineHeight: 22,
+        fontSize: 15,
     },
     reasonField: {
-        marginTop: 12,
+        marginTop: 4,
     },
     reasonLabel: {
         marginBottom: 8,
     },
     reasonInputContainer: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: 16,
         padding: 12,
-        minHeight: 50,
+        minHeight: 80,
     },
     reasonIcon: {
         marginRight: 8,
+        marginTop: 2,
     },
-    reasonPlaceholder: {
+    reasonInput: {
         flex: 1,
+        fontSize: 15,
+        textAlignVertical: 'top',
+        paddingTop: 0,
+        minHeight: 60,
     },
     footer: {
         flexDirection: 'row',

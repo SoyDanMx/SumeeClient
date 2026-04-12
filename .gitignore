@@ -31,7 +31,16 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# Documentation files with sensitive tokens/secrets
+*TOKEN*.md
+*SECRET*.md
+*CREDENCIALES*.md
+*CONFIGURACION*.md
+*ENV*.md
+*VARIABLES*.md
 
 # typescript
 *.tsbuildinfo

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     StyleSheet,
@@ -6,6 +6,7 @@ import {
     TouchableOpacity,
     RefreshControl,
     ActivityIndicator,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -27,24 +28,7 @@ export default function MessagesScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    useEffect(() => {
-        if (user) {
-            loadConversations();
-        }
-    }, [user]);
-
-    // Suscribirse a nuevos mensajes
-    useEffect(() => {
-        if (!user) return;
-
-        const unsubscribe = MessagesService.subscribeToConversations(user.id, () => {
-            loadConversations();
-        });
-
-        return unsubscribe;
-    }, [user]);
-
-    const loadConversations = async () => {
+    const loadConversations = useCallback(async () => {
         if (!user) return;
 
         try {
@@ -57,7 +41,26 @@ export default function MessagesScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    };
+    }, [user]);
+
+    useEffect(() => {
+        if (user) {
+            loadConversations();
+        } else {
+            setLoading(false);
+            setConversations([]);
+        }
+    }, [user, loadConversations]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const unsubscribe = MessagesService.subscribeToConversations(user.id, () => {
+            loadConversations();
+        });
+
+        return unsubscribe;
+    }, [user, loadConversations]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -118,8 +121,26 @@ export default function MessagesScreen() {
                 </Text>
             </View>
 
-            {/* Lista de Conversaciones */}
-            {loading ? (
+            {!user ? (
+                <View style={styles.emptyContainer}>
+                    <Ionicons name="chatbubbles-outline" size={64} color={theme.textSecondary} />
+                    <Text variant="h3" weight="bold" style={styles.emptyTitle}>
+                        Inicia sesión
+                    </Text>
+                    <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
+                        Así podrás chatear con los profesionales de tus solicitudes.
+                    </Text>
+                    <TouchableOpacity
+                        style={[styles.loginCta, { backgroundColor: theme.primary }]}
+                        onPress={() => router.push('/auth/login')}
+                        activeOpacity={0.85}
+                    >
+                        <Text variant="body" weight="bold" color="#FFFFFF">
+                            Ir a iniciar sesión
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            ) : loading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={theme.primary} />
                     <Text variant="body" color={theme.textSecondary} style={styles.loadingText}>
@@ -133,8 +154,17 @@ export default function MessagesScreen() {
                         No hay mensajes
                     </Text>
                     <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
-                        Tus conversaciones con profesionales aparecerán aquí
+                        Cuando un profesional acepte tu solicitud o envíes un mensaje, el hilo aparecerá aquí.
                     </Text>
+                    <TouchableOpacity
+                        style={styles.secondaryCta}
+                        onPress={() => router.push('/(tabs)/projects')}
+                        activeOpacity={0.8}
+                    >
+                        <Text variant="body" weight="bold" color={theme.primary}>
+                            Ver mis solicitudes
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             ) : (
                 <ScrollView
@@ -153,9 +183,10 @@ export default function MessagesScreen() {
                                         {/* Avatar del Profesional */}
                                         <View style={styles.avatarContainer}>
                                             {conversation.professional_avatar ? (
-                                                <View style={[styles.avatar, { backgroundColor: theme.primary + '20' }]}>
-                                                    <Ionicons name="person" size={24} color={theme.primary} />
-                                                </View>
+                                                <Image
+                                                    source={{ uri: conversation.professional_avatar }}
+                                                    style={styles.avatarImage}
+                                                />
                                             ) : (
                                                 <View style={[styles.avatar, { backgroundColor: theme.primary + '20' }]}>
                                                     <Ionicons name="person" size={24} color={theme.primary} />
@@ -255,6 +286,7 @@ const styles = StyleSheet.create({
     },
     conversationsList: {
         padding: 20,
+        paddingBottom: 100,
     },
     conversationCard: {
         marginBottom: 12,
@@ -273,6 +305,22 @@ const styles = StyleSheet.create({
         borderRadius: 28,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    avatarImage: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#E5E7EB',
+    },
+    loginCta: {
+        marginTop: 24,
+        paddingVertical: 14,
+        paddingHorizontal: 28,
+        borderRadius: 14,
+    },
+    secondaryCta: {
+        marginTop: 20,
+        paddingVertical: 12,
     },
     unreadBadge: {
         position: 'absolute',

@@ -21,34 +21,39 @@ import { Button } from '@/components/Button';
 import { ProfessionalProfileCard } from '@/components/ProfessionalProfileCard';
 import { EditLeadModal } from '@/components/EditLeadModal';
 import { CancelLeadModal } from '@/components/CancelLeadModal';
+import { CompleteServiceModal } from '@/components/CompleteServiceModal';
 import { supabase } from '@/lib/supabase';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 import { openWhatsApp, generateClientToProfessionalMessage } from '@/utils/whatsapp';
 import { LeadsService } from '@/services/leads';
+import { ReviewsService, Review } from '@/services/reviews';
+import { UniversalMap } from '@/components/UniversalMap';
+import { ReviewModal } from '@/components/ReviewModal';
 
 interface Lead {
     id: string;
-    servicio_solicitado: string;
-    servicio: string;
-    descripcion_proyecto: string;
+    servicio_solicitado?: string | null;
+    servicio?: string | null;
+    descripcion_proyecto?: string | null;
     status: string;
-    estado: string;
-    price: number;
-    agreed_price: number;
+    estado?: string | null;
+    price?: number | null;
+    agreed_price?: number | null;
     ubicacion_direccion?: string | null;
     ubicacion_lat?: number | null;
     ubicacion_lng?: number | null;
-    whatsapp?: string;
-    professional_id?: string;
-    profesional_asignado_id?: string; // Campo legacy
-    created_at: string;
-    updated_at: string;
+    whatsapp?: string | null;
+    professional_id?: string | null;
+    profesional_asignado_id?: string | null; // Campo legacy
+    created_at: string | null;
+    updated_at: string | null;
     profiles?: {
         full_name: string;
         whatsapp?: string;
         phone?: string;
         profession?: string;
         calificacion_promedio?: number;
+        avatar_url?: string | null;
     };
 }
 
@@ -63,6 +68,9 @@ export default function LeadDetailScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
     const [isCancelModalVisible, setIsCancelModalVisible] = useState(false);
+    const [isCompleteModalVisible, setIsCompleteModalVisible] = useState(false);
+    const [isReviewModalVisible, setIsReviewModalVisible] = useState(false);
+    const [review, setReview] = useState<Review | null>(null);
 
     useEffect(() => {
         if (id) {
@@ -76,10 +84,10 @@ export default function LeadDetailScreen() {
         try {
             setLoading(true);
             console.log('[LeadDetail] Loading lead:', id);
-            
+
             // Obtener el lead usando LeadsService
             const leadData = await LeadsService.getLeadById(id);
-            
+
             if (!leadData) {
                 console.error('[LeadDetail] Lead not found:', id);
                 setLead(null);
@@ -87,10 +95,11 @@ export default function LeadDetailScreen() {
             }
 
             console.log('[LeadDetail] Lead loaded:', leadData.id);
-            
+            console.log('[LeadDetail] Full Lead JSON:', JSON.stringify(leadData, null, 2));
+
             // Obtener professional_id (prioridad: professional_id > profesional_asignado_id)
             const professionalId = leadData.professional_id || (leadData as any).profesional_asignado_id;
-            
+
             console.log('[LeadDetail] Lead data:', {
                 professional_id: leadData.professional_id,
                 profesional_asignado_id: (leadData as any).profesional_asignado_id,
@@ -123,7 +132,7 @@ export default function LeadDetailScreen() {
             // Construir objeto Lead completo
             // Asegurar que professional_id esté presente (usar profesional_asignado_id si no existe)
             const resolvedProfessionalId = leadData.professional_id || (leadData as any).profesional_asignado_id;
-            
+
             const completeLead: Lead = {
                 ...leadData,
                 professional_id: resolvedProfessionalId || leadData.professional_id,
@@ -139,6 +148,12 @@ export default function LeadDetailScreen() {
             });
 
             setLead(completeLead);
+
+            // Cargar reseña si el lead está completado
+            if (completeLead.status === 'completed') {
+                const existingReview = await ReviewsService.getReviewByLeadId(id);
+                setReview(existingReview);
+            }
         } catch (error: any) {
             console.error('[LeadDetail] Error loading lead:', error);
             console.error('[LeadDetail] Error details:', {
@@ -172,7 +187,7 @@ export default function LeadDetailScreen() {
 
         const serviceName = lead.servicio_solicitado || lead.servicio || 'servicio';
         const message = generateClientToProfessionalMessage(serviceName, user?.email?.split('@')[0]);
-        
+
         await openWhatsApp(whatsappNumber, message);
     };
 
@@ -182,18 +197,18 @@ export default function LeadDetailScreen() {
      */
     const formatAddress = (address: string | null | undefined): string => {
         if (!address) return 'Ubicación no especificada';
-        
+
         // Si la dirección ya está bien formateada, retornarla
         if (address.includes(',') || address.includes('CDMX') || address.includes('Ciudad de México')) {
             return address;
         }
-        
+
         // Si solo tiene calle, agregar ciudad por defecto
         // Ejemplo: "Calle Atenas" → "Calle Atenas, Ciudad de México"
         if (address.trim() && !address.includes('Ciudad de México') && !address.includes('CDMX')) {
             return `${address}, Ciudad de México`;
         }
-        
+
         return address;
     };
 
@@ -207,7 +222,7 @@ export default function LeadDetailScreen() {
             case 'completed':
                 return <Badge variant="guarantee">Completado</Badge>;
             case 'cancelled':
-                return <Badge variant="danger">Cancelado</Badge>;
+                return <Badge variant="cancelled">Cancelado</Badge>;
             default:
                 return null;
         }
@@ -235,6 +250,21 @@ export default function LeadDetailScreen() {
         }
     };
 
+    const handleCompleteLead = async () => {
+        if (!lead || !user) return;
+
+        try {
+            const updatedLead = await LeadsService.completeLead(lead.id, user.id);
+            if (updatedLead) {
+                // Recargar el lead actualizado
+                await loadLead();
+            }
+        } catch (error: any) {
+            console.error('[LeadDetail] Error completing lead:', error);
+            throw error;
+        }
+    };
+
     const handleCancelLead = async (reason?: string) => {
         if (!lead || !user) return;
 
@@ -257,8 +287,9 @@ export default function LeadDetailScreen() {
     };
 
     // Verificar si el lead puede ser editado o cancelado
-    const canEdit = lead && lead.status !== 'completed' && lead.status !== 'cancelled';
-    const canCancel = lead && lead.status !== 'completed' && lead.status !== 'cancelled';
+    const canEdit = !!lead && lead.status !== 'completed' && lead.status !== 'cancelled';
+    const canCancel = !!lead && lead.status !== 'completed' && lead.status !== 'cancelled';
+    const canComplete = !!lead && lead.status === 'accepted';
 
     if (loading) {
         return (
@@ -337,8 +368,8 @@ export default function LeadDetailScreen() {
                         {lead.descripcion_proyecto && (
                             <View style={styles.descriptionContainer}>
                                 <Text variant="body" color={theme.textSecondary}>
-                                    {typeof lead.descripcion_proyecto === 'string' 
-                                        ? lead.descripcion_proyecto 
+                                    {typeof lead.descripcion_proyecto === 'string'
+                                        ? lead.descripcion_proyecto
                                         : JSON.stringify(lead.descripcion_proyecto)}
                                 </Text>
                             </View>
@@ -364,7 +395,7 @@ export default function LeadDetailScreen() {
                         {(() => {
                             console.log('[LeadDetail] Rendering ProfessionalProfileCard with ID:', resolvedProfessionalId);
                             return (
-                                <ProfessionalProfileCard 
+                                <ProfessionalProfileCard
                                     professionalId={resolvedProfessionalId}
                                     leadId={lead.id}
                                     onPress={() => router.push(`/professional/${resolvedProfessionalId}`)}
@@ -394,7 +425,7 @@ export default function LeadDetailScreen() {
                         <Text variant="h3" weight="bold" style={styles.sectionTitle}>
                             Ubicación del Servicio
                         </Text>
-                        
+
                         <View style={styles.locationContainer}>
                             <View style={[styles.locationIconContainer, { backgroundColor: theme.primary + '15' }]}>
                                 <Ionicons name="location" size={24} color={theme.primary} />
@@ -403,17 +434,34 @@ export default function LeadDetailScreen() {
                                 <Text variant="body" weight="medium" style={styles.locationText}>
                                     {formatAddress(lead.ubicacion_direccion)}
                                 </Text>
-                                {lead.ubicacion_lat && lead.ubicacion_lng && (
+                                {!!lead.ubicacion_lat && !!lead.ubicacion_lng && (
                                     <Text variant="caption" color={theme.textSecondary} style={styles.coordinatesText}>
-                                        {typeof lead.ubicacion_lat === 'string' 
-                                            ? parseFloat(lead.ubicacion_lat).toFixed(6) 
-                                            : lead.ubicacion_lat.toFixed(6)}, {typeof lead.ubicacion_lng === 'string' 
-                                            ? parseFloat(lead.ubicacion_lng).toFixed(6) 
-                                            : lead.ubicacion_lng.toFixed(6)}
+                                        {typeof lead.ubicacion_lat === 'string'
+                                            ? parseFloat(lead.ubicacion_lat).toFixed(6)
+                                            : lead.ubicacion_lat.toFixed(6)}, {typeof lead.ubicacion_lng === 'string'
+                                                ? parseFloat(lead.ubicacion_lng).toFixed(6)
+                                                : lead.ubicacion_lng.toFixed(6)}
                                     </Text>
                                 )}
                             </View>
                         </View>
+
+                        {!!lead.ubicacion_lat && !!lead.ubicacion_lng && (
+                            <UniversalMap
+                                latitude={typeof lead.ubicacion_lat === 'string' ? parseFloat(lead.ubicacion_lat) : lead.ubicacion_lat}
+                                longitude={typeof lead.ubicacion_lng === 'string' ? parseFloat(lead.ubicacion_lng) : lead.ubicacion_lng}
+                                zoom={16}
+                                markers={[{
+                                    id: lead.id,
+                                    latitude: typeof lead.ubicacion_lat === 'string' ? parseFloat(lead.ubicacion_lat) : lead.ubicacion_lat,
+                                    longitude: typeof lead.ubicacion_lng === 'string' ? parseFloat(lead.ubicacion_lng) : lead.ubicacion_lng,
+                                    type: 'job',
+                                    servicio: lead.servicio || undefined,
+                                    servicioSolicitado: lead.servicio_solicitado || undefined,
+                                }]}
+                                style={styles.map}
+                            />
+                        )}
                     </Card>
                 </View>
 
@@ -428,11 +476,11 @@ export default function LeadDetailScreen() {
                                         Creado
                                     </Text>
                                     <Text variant="body" weight="medium">
-                                        {new Date(lead.created_at).toLocaleDateString('es-MX', {
+                                        {lead.created_at ? new Date(lead.created_at).toLocaleDateString('es-MX', {
                                             day: 'numeric',
                                             month: 'long',
                                             year: 'numeric',
-                                        })}
+                                        }) : 'Fecha no disponible'}
                                     </Text>
                                 </View>
                             </View>
@@ -443,11 +491,11 @@ export default function LeadDetailScreen() {
                                         Última actualización
                                     </Text>
                                     <Text variant="body" weight="medium">
-                                        {new Date(lead.updated_at).toLocaleDateString('es-MX', {
+                                        {lead.updated_at ? new Date(lead.updated_at).toLocaleDateString('es-MX', {
                                             day: 'numeric',
                                             month: 'long',
                                             year: 'numeric',
-                                        })}
+                                        }) : 'Fecha no disponible'}
                                     </Text>
                                 </View>
                             </View>
@@ -455,27 +503,92 @@ export default function LeadDetailScreen() {
                     </Card>
                 </View>
 
-                {/* Botones de Acción */}
-                {(canEdit || canCancel) && (
+                {/* Sección de Calificación (Solo si está completado) */}
+                {lead.status === 'completed' && (
                     <View style={styles.section}>
-                        <View style={styles.actionButtons}>
-                            {canEdit && (
-                                <Button
-                                    title="Editar Servicio"
-                                    onPress={() => setIsEditModalVisible(true)}
-                                    variant="primary"
-                                    style={styles.actionButton}
-                                />
+                        <Text variant="h3" weight="bold" style={styles.sectionTitle}>
+                            Tu Calificación
+                        </Text>
+                        <Card variant="elevated" style={styles.card}>
+                            {review ? (
+                                <View style={styles.reviewCardContent}>
+                                    <View style={styles.reviewHeader}>
+                                        <View style={styles.starsRow}>
+                                            {[1, 2, 3, 4, 5].map((s) => (
+                                                <Ionicons
+                                                    key={s}
+                                                    name={s <= review.rating ? "star" : "star-outline"}
+                                                    size={24}
+                                                    color={s <= review.rating ? "#FBBF24" : "#D1D5DB"}
+                                                />
+                                            ))}
+                                        </View>
+                                        <TouchableOpacity
+                                            onPress={() => setIsReviewModalVisible(true)}
+                                            style={[styles.editReviewButton, { backgroundColor: theme.primary + '15' }]}
+                                        >
+                                            <Text variant="caption" weight="bold" color={theme.primary}>Editar</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {review.comment && (
+                                        <Text variant="body" color={theme.textSecondary} style={styles.reviewComment}>
+                                            "{review.comment}"
+                                        </Text>
+                                    )}
+                                    <Text variant="caption" color={theme.textSecondary} style={styles.reviewDate}>
+                                        Publicada el {new Date(review.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View style={styles.emptyReviewContent}>
+                                    <Ionicons name="star-outline" size={32} color={theme.textSecondary} />
+                                    <Text variant="body" color={theme.textSecondary} style={{ textAlign: 'center', marginVertical: 12 }}>
+                                        Aún no has calificado este servicio. Tu opinión ayuda a mejorar la comunidad.
+                                    </Text>
+                                    <Button
+                                        title="Calificar Ahora"
+                                        onPress={() => setIsReviewModalVisible(true)}
+                                        variant="outline"
+                                        style={styles.reviewButton}
+                                    />
+                                </View>
                             )}
-                            {canCancel && (
-                                <Button
-                                    title="Cancelar Servicio"
-                                    onPress={() => setIsCancelModalVisible(true)}
-                                    variant="danger"
-                                    style={styles.actionButton}
-                                />
-                            )}
-                        </View>
+                        </Card>
+                    </View>
+                )}
+
+                {/* Botones de Acción */}
+                {!!(canEdit || canCancel || canComplete) && (
+                    <View style={styles.section}>
+                        {!!canComplete && (
+                            <Button
+                                title="Trabajo Completado"
+                                onPress={() => setIsCompleteModalVisible(true)}
+                                variant="primary"
+                                style={[styles.mainActionButton, { backgroundColor: TULBOX_COLORS.PURPLE }]}
+                            />
+                        )}
+
+                        {(canEdit || canCancel) && (
+                            <View style={[styles.secondaryButtons, { marginTop: canComplete ? 12 : 0 }]}>
+                                {!!canEdit && (
+                                    <Button
+                                        title="Editar"
+                                        onPress={() => setIsEditModalVisible(true)}
+                                        variant="outline"
+                                        style={styles.actionButton}
+                                    />
+                                )}
+                                {!!canCancel && (
+                                    <Button
+                                        title="Cancelar"
+                                        onPress={() => setIsCancelModalVisible(true)}
+                                        variant="danger"
+                                        style={styles.actionButton}
+                                    />
+                                )}
+                            </View>
+                        )}
                     </View>
                 )}
 
@@ -483,7 +596,7 @@ export default function LeadDetailScreen() {
             </ScrollView>
 
             {/* Modales */}
-            {lead && (
+            {!!lead && (
                 <>
                     <EditLeadModal
                         visible={isEditModalVisible}
@@ -496,6 +609,27 @@ export default function LeadDetailScreen() {
                         lead={lead}
                         onClose={() => setIsCancelModalVisible(false)}
                         onConfirm={handleCancelLead}
+                    />
+                    <CompleteServiceModal
+                        visible={isCompleteModalVisible}
+                        lead={{
+                            ...lead,
+                            cliente_id: user?.id || '',
+                        }}
+                        onClose={() => setIsCompleteModalVisible(false)}
+                        onConfirm={handleCompleteLead}
+                    />
+                    <ReviewModal
+                        visible={isReviewModalVisible}
+                        leadId={lead.id}
+                        clientId={user?.id || ''}
+                        professionalId={resolvedProfessionalId || ''}
+                        existingReview={review}
+                        onClose={() => setIsReviewModalVisible(false)}
+                        onSave={(updatedReview) => {
+                            setReview(updatedReview);
+                            loadLead(); // Recargar para actualizar promedios si es necesario
+                        }}
                     />
                 </>
             )}
@@ -616,6 +750,12 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontFamily: 'monospace',
     },
+    map: {
+        height: 200,
+        width: '100%',
+        borderRadius: 12,
+        marginTop: 12,
+    },
     dateRow: {
         gap: 16,
     },
@@ -631,8 +771,48 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 12,
     },
+    mainActionButton: {
+        width: '100%',
+    },
+    secondaryButtons: {
+        flexDirection: 'row',
+        gap: 12,
+    },
     actionButton: {
         flex: 1,
+    },
+    reviewCardContent: {
+        paddingVertical: 8,
+    },
+    reviewHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    starsRow: {
+        flexDirection: 'row',
+        gap: 4,
+    },
+    editReviewButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+    },
+    reviewComment: {
+        fontStyle: 'italic',
+        lineHeight: 22,
+        marginBottom: 8,
+    },
+    reviewDate: {
+        marginTop: 4,
+    },
+    emptyReviewContent: {
+        alignItems: 'center',
+        paddingVertical: 16,
+    },
+    reviewButton: {
+        width: '100%',
     },
 });
 

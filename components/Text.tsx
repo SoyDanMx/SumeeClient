@@ -3,7 +3,7 @@ import { Text as RNText, TextProps, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface ThemedTextProps extends TextProps {
-    variant?: 'h1' | 'h2' | 'h3' | 'body' | 'caption' | 'label';
+    variant?: 'h1' | 'h2' | 'h3' | 'body' | 'caption' | 'label' | 'tiny';
     color?: string;
     weight?: 'normal' | 'medium' | 'bold' | '600';
 }
@@ -18,6 +18,7 @@ export function Text({ style, variant = 'body', color, weight, ...props }: Theme
             case 'h3': return styles.h3;
             case 'caption': return styles.caption;
             case 'label': return styles.label;
+            case 'tiny': return styles.tiny;
             default: return styles.body;
         }
     };
@@ -43,5 +44,6 @@ const styles = StyleSheet.create({
     body: { fontSize: 16, lineHeight: 24 },
     caption: { fontSize: 12, lineHeight: 16 },
     label: { fontSize: 14, fontWeight: '500' },
+    tiny: { fontSize: 10, lineHeight: 14 },
 });
 

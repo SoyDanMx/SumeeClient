@@ -6,6 +6,8 @@ import {
     Platform,
     ScrollView,
     TextInput,
+    Linking,
+    TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -185,6 +187,16 @@ export default function RegisterScreen() {
                                 onPress={() => router.push('/auth/login')}
                             />
                         </View>
+
+                        <View style={styles.legalFooter}>
+                            <TouchableOpacity onPress={() => Linking.openURL('https://tulbox.pro/en/privacidad')}>
+                                <Text variant="caption" color={theme.textSecondary}>Privacidad</Text>
+                            </TouchableOpacity>
+                            <Text variant="caption" color={theme.textSecondary}> • </Text>
+                            <TouchableOpacity onPress={() => Linking.openURL('https://tulbox.pro/en/terminos')}>
+                                <Text variant="caption" color={theme.textSecondary}>Términos</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -256,6 +268,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    legalFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 16,
+        gap: 8,
     },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     StyleSheet,
@@ -8,7 +8,7 @@ import {
     TextInput,
     TouchableOpacity,
     ActivityIndicator,
-    Keyboard,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -19,7 +19,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Text } from '@/components/Text';
 import { MessagesService, Message } from '@/services/messages';
 import { supabase } from '@/lib/supabase';
-import { SUMEE_COLORS } from '@/constants/Colors';
+
+type LeadHeaderInfo = {
+    servicio_solicitado?: string | null;
+    servicio?: string | null;
+    professional?: { full_name?: string | null; avatar_url?: string | null } | null;
+};
 
 export default function ChatScreen() {
     const { theme } = useTheme();
@@ -31,93 +36,89 @@ export default function ChatScreen() {
     const [inputText, setInputText] = useState('');
     const [sending, setSending] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [leadInfo, setLeadInfo] = useState<any>(null);
+    const [leadInfo, setLeadInfo] = useState<LeadHeaderInfo | null>(null);
     const scrollViewRef = useRef<ScrollView>(null);
 
-    useEffect(() => {
-        if (leadId && user) {
-            loadMessages();
-            loadLeadInfo();
-            markAsRead();
-        }
+    const refreshMessages = useCallback(async () => {
+        if (!leadId || !user) return;
+        const data = await MessagesService.getMessages(leadId, user.id);
+        setMessages(data);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
     }, [leadId, user]);
 
-    // Suscribirse a nuevos mensajes
-    useEffect(() => {
-        if (!leadId) return;
+    const loadLeadInfo = useCallback(async () => {
+        if (!leadId || !user) return;
 
-        const unsubscribe = MessagesService.subscribeToMessages(leadId, (newMessage) => {
-            setMessages((prev) => {
-                // Evitar duplicados
-                if (prev.some((m) => m.id === newMessage.id)) {
-                    return prev;
-                }
-                return [...prev, newMessage];
-            });
-            
-            // Marcar como leído si es del profesional
-            if (user && newMessage.sender_id !== user.id) {
-                MessagesService.markAsRead(leadId, user.id);
+        try {
+            const { data: leadRow, error } = await supabase
+                .from('leads')
+                .select('servicio_solicitado, servicio, professional_id, profesional_asignado_id, cliente_id')
+                .eq('id', leadId)
+                .maybeSingle();
+
+            if (error || !leadRow) {
+                console.error('[Chat] lead load:', error);
+                router.back();
+                return;
             }
 
-            // Scroll al final
-            setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-            }, 100);
+            if ((leadRow as any).cliente_id !== user.id) {
+                router.back();
+                return;
+            }
+
+            const pid =
+                (leadRow as any).professional_id || (leadRow as any).profesional_asignado_id || null;
+            let professional: { full_name?: string | null; avatar_url?: string | null } | null = null;
+            if (pid) {
+                const { data: prof } = await supabase
+                    .from('profiles')
+                    .select('full_name, avatar_url')
+                    .eq('user_id', pid)
+                    .maybeSingle();
+                professional = prof;
+            }
+
+            setLeadInfo({
+                servicio_solicitado: (leadRow as any).servicio_solicitado,
+                servicio: (leadRow as any).servicio,
+                professional,
+            });
+        } catch (e) {
+            console.error('[Chat] loadLeadInfo:', e);
+        }
+    }, [leadId, user, router]);
+
+    useEffect(() => {
+        if (!leadId || !user) return;
+
+        let cancelled = false;
+        (async () => {
+            setLoading(true);
+            await loadLeadInfo();
+            if (cancelled) return;
+            await MessagesService.markAsRead(leadId, user.id);
+            await refreshMessages();
+            if (!cancelled) setLoading(false);
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [leadId, user, loadLeadInfo, refreshMessages]);
+
+    useEffect(() => {
+        if (!leadId || !user) return;
+
+        const unsubscribe = MessagesService.subscribeToMessages(leadId, async (newMessage) => {
+            await refreshMessages();
+            if (newMessage.sender_id !== user.id) {
+                await MessagesService.markAsRead(leadId, user.id);
+            }
         });
 
         return unsubscribe;
-    }, [leadId, user]);
-
-    const loadMessages = async () => {
-        if (!leadId || !user) return;
-
-        try {
-            setLoading(true);
-            const data = await MessagesService.getMessages(leadId, user.id);
-            setMessages(data);
-            
-            // Scroll al final
-            setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: false });
-            }, 100);
-        } catch (error) {
-            console.error('[Chat] Error loading messages:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadLeadInfo = async () => {
-        if (!leadId) return;
-
-        try {
-            const { data, error } = await supabase
-                .from('leads')
-                .select(`
-                    servicio_solicitado,
-                    servicio,
-                    professional_id,
-                    profiles!leads_professional_id_fkey (
-                        full_name,
-                        avatar_url
-                    )
-                `)
-                .eq('id', leadId)
-                .single();
-
-            if (!error && data) {
-                setLeadInfo(data);
-            }
-        } catch (error) {
-            console.error('[Chat] Error loading lead info:', error);
-        }
-    };
-
-    const markAsRead = async () => {
-        if (!leadId || !user) return;
-        await MessagesService.markAsRead(leadId, user.id);
-    };
+    }, [leadId, user, refreshMessages]);
 
     const handleSend = async () => {
         if (!inputText.trim() || !leadId || !user || sending) return;
@@ -128,14 +129,10 @@ export default function ChatScreen() {
 
         try {
             await MessagesService.sendMessage(leadId, user.id, text);
-            
-            // Scroll al final
-            setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-            }, 100);
+            await refreshMessages();
         } catch (error) {
             console.error('[Chat] Error sending message:', error);
-            setInputText(text); // Restaurar texto si falla
+            setInputText(text);
         } finally {
             setSending(false);
         }
@@ -149,8 +146,13 @@ export default function ChatScreen() {
         });
     };
 
-    const professionalName = leadInfo?.profiles?.full_name || 'Profesional';
+    const professionalName = leadInfo?.professional?.full_name || 'Profesional';
     const leadTitle = leadInfo?.servicio_solicitado || leadInfo?.servicio || 'Servicio';
+    const proAvatar = leadInfo?.professional?.avatar_url;
+
+    if (!user) {
+        return null;
+    }
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -160,15 +162,17 @@ export default function ChatScreen() {
                 style={styles.keyboardView}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
             >
-                {/* Header */}
                 <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        style={styles.backButton}
-                        activeOpacity={0.7}
-                    >
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
                         <Ionicons name="arrow-back" size={24} color={theme.text} />
                     </TouchableOpacity>
+                    {proAvatar ? (
+                        <Image source={{ uri: proAvatar }} style={styles.headerAvatar} />
+                    ) : (
+                        <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder, { backgroundColor: theme.primary + '22' }]}>
+                            <Ionicons name="person" size={22} color={theme.primary} />
+                        </View>
+                    )}
                     <View style={styles.headerInfo}>
                         <Text variant="h3" weight="bold" numberOfLines={1}>
                             {professionalName}
@@ -179,7 +183,6 @@ export default function ChatScreen() {
                     </View>
                 </View>
 
-                {/* Mensajes */}
                 {loading ? (
                     <View style={styles.loadingContainer}>
                         <ActivityIndicator size="large" color={theme.primary} />
@@ -192,9 +195,10 @@ export default function ChatScreen() {
                         onContentSizeChange={() => {
                             scrollViewRef.current?.scrollToEnd({ animated: true });
                         }}
+                        keyboardShouldPersistTaps="handled"
                     >
                         {messages.map((message) => {
-                            const isMe = message.sender_id === user?.id;
+                            const isMe = message.sender_id === user.id;
                             return (
                                 <View
                                     key={message.id}
@@ -211,6 +215,11 @@ export default function ChatScreen() {
                                                 : { backgroundColor: theme.surface },
                                         ]}
                                     >
+                                        {!isMe && message.sender_name ? (
+                                            <Text variant="caption" weight="bold" style={{ color: theme.textSecondary, marginBottom: 4 }}>
+                                                {message.sender_name}
+                                            </Text>
+                                        ) : null}
                                         <Text
                                             variant="body"
                                             style={[
@@ -236,19 +245,17 @@ export default function ChatScreen() {
                     </ScrollView>
                 )}
 
-                {/* Input */}
                 <View style={[styles.inputContainer, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
                     <View style={[styles.inputWrapper, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                         <TextInput
                             style={[styles.input, { color: theme.text }]}
-                            placeholder="Escribe un mensaje..."
+                            placeholder="Escribe un mensaje al profesional…"
                             placeholderTextColor={theme.textSecondary}
                             value={inputText}
                             onChangeText={setInputText}
                             multiline
                             maxLength={1000}
-                            onSubmitEditing={handleSend}
-                            returnKeyType="send"
+                            returnKeyType="default"
                         />
                         <TouchableOpacity
                             onPress={handleSend}
@@ -284,14 +291,25 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
+        padding: 12,
         borderBottomWidth: 1,
+        gap: 10,
     },
     backButton: {
-        marginRight: 12,
+        marginRight: 4,
+    },
+    headerAvatar: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+    },
+    headerAvatarPlaceholder: {
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerInfo: {
         flex: 1,
+        minWidth: 0,
     },
     loadingContainer: {
         flex: 1,
@@ -303,6 +321,7 @@ const styles = StyleSheet.create({
     },
     messagesContent: {
         padding: 16,
+        paddingBottom: 24,
     },
     messageWrapper: {
         marginBottom: 12,
@@ -314,7 +333,7 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
     },
     messageBubble: {
-        maxWidth: '75%',
+        maxWidth: '80%',
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 20,
@@ -353,4 +372,3 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
 });
-

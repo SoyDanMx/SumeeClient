@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
 import { Card } from './Card';
 import { useTheme } from '@/contexts/ThemeContext';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 import { formatDistance } from '@/services/professionals';
 import { openWhatsApp } from '@/utils/whatsapp';
 import { resolveAvatarUrl, DEFAULT_AVATAR } from '@/utils/avatar';
@@ -17,94 +17,107 @@ interface ProfessionalCardProps {
     completedJobs: number;
     photo?: string;
     verified?: boolean;
-    distance?: number; // km desde usuario
-    areasServicio?: string[]; // Tags/skills como en la web
-    whatsapp?: string; // Para botón de contacto
+    isOnline?: boolean;
+    distance?: number;
+    areasServicio?: string[];
+    whatsapp?: string;
     onPress?: () => void;
 }
 
-export function ProfessionalCard({ 
-    name, 
-    specialty, 
-    rating, 
-    completedJobs, 
-    photo, 
+function ProfessionalCardInner({
+    name,
+    specialty,
+    rating,
+    completedJobs,
+    photo,
     verified = true,
+    isOnline = false,
     distance,
     areasServicio = [],
     whatsapp,
-    onPress 
+    onPress,
 }: ProfessionalCardProps) {
     const { theme } = useTheme();
 
-    // Renderizar estrellas
-    const renderStars = () => {
-        // Asegurar que rating siempre sea un número válido
+    const stars = useMemo(() => {
         const validRating = rating && rating > 0 ? rating : 0;
-        const stars = [];
         const fullStars = Math.floor(validRating);
         const hasHalfStar = validRating % 1 >= 0.5;
-
+        const out: React.ReactNode[] = [];
         for (let i = 0; i < 5; i++) {
             if (i < fullStars) {
-                stars.push(
-                    <Ionicons key={i} name="star" size={14} color="#FBBF24" />
-                );
+                out.push(<Ionicons key={i} name="star" size={14} color="#FBBF24" accessibilityElementsHidden />);
             } else if (i === fullStars && hasHalfStar) {
-                stars.push(
-                    <Ionicons key={i} name="star-half" size={14} color="#FBBF24" />
-                );
+                out.push(<Ionicons key={i} name="star-half" size={14} color="#FBBF24" accessibilityElementsHidden />);
             } else {
-                stars.push(
-                    <Ionicons key={i} name="star-outline" size={14} color="#D1D5DB" />
-                );
+                out.push(<Ionicons key={i} name="star-outline" size={14} color="#D1D5DB" accessibilityElementsHidden />);
             }
         }
-        return stars;
-    };
+        return out;
+    }, [rating]);
 
-    const handleWhatsApp = () => {
+    const handleWhatsApp = useCallback(() => {
         if (whatsapp) {
             openWhatsApp(whatsapp, `Hola ${name}, me interesa tu servicio de ${specialty}`);
         }
-    };
+    }, [whatsapp, name, specialty]);
+
+    const ratingValue = rating && rating > 0 ? rating : 0;
+    const profileAccessibilityLabel = `${name}, ${specialty}. Calificación ${ratingValue.toFixed(1)} de 5.`;
 
     return (
         <TouchableOpacity
             onPress={onPress}
             activeOpacity={0.7}
             style={styles.container}
+            accessibilityRole="button"
+            accessibilityLabel={profileAccessibilityLabel}
+            accessibilityHint="Abre el perfil del profesional"
         >
             <Card variant="elevated" style={styles.card}>
                 <View style={styles.content}>
-                    {/* Foto del profesional */}
                     <View style={styles.photoContainer}>
                         {photo ? (
-                            <Image 
-                                source={{ 
+                            <Image
+                                source={{
                                     uri: resolveAvatarUrl(photo),
-                                    cache: 'reload' // Forzar recarga para detectar fotos actualizadas
-                                }} 
+                                    cache: 'reload',
+                                }}
                                 style={styles.photo}
                                 resizeMode="cover"
+                                accessible
+                                accessibilityLabel={`Foto de perfil de ${name}`}
                                 onError={() => {
-                                    // Si falla la carga, usar placeholder
                                     console.warn('[ProfessionalCard] Error loading avatar:', photo);
                                 }}
                             />
                         ) : (
-                            <View style={[styles.photoPlaceholder, { backgroundColor: theme.primary + '20' }]}>
-                                <Ionicons name="person" size={40} color={theme.primary} />
+                            <View
+                                style={[styles.photoPlaceholder, { backgroundColor: theme.primary + '20' }]}
+                                accessible
+                                accessibilityLabel={`Sin foto de perfil, ${name}`}
+                            >
+                                <Ionicons name="person" size={40} color={theme.primary} importantForAccessibility="no" />
                             </View>
                         )}
+
+                        {isOnline && (
+                            <View
+                                style={[styles.onlineBadge, { backgroundColor: '#10B981', borderColor: '#FFFFFF' }]}
+                                accessibilityLabel="En línea"
+                            />
+                        )}
+
                         {verified && (
-                            <View style={[styles.verifiedBadge, { backgroundColor: '#3B82F6' }]}>
-                                <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                            <View
+                                style={[styles.verifiedBadge, { backgroundColor: '#3B82F6' }]}
+                                accessibilityLabel="Profesional verificado"
+                            >
+                                <Ionicons name="checkmark" size={14} color="#FFFFFF" importantForAccessibility="no" />
                             </View>
                         )}
                     </View>
 
-                    {/* Información Principal */}
                     <View style={styles.info}>
                         <View style={styles.headerRow}>
                             <View style={styles.nameContainer}>
@@ -120,13 +133,15 @@ export function ProfessionalCard({
                                     style={[styles.whatsappButton, { backgroundColor: '#25D366' }]}
                                     onPress={handleWhatsApp}
                                     activeOpacity={0.8}
+                                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Contactar por WhatsApp a ${name}`}
                                 >
-                                    <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                                    <Ionicons name="logo-whatsapp" size={22} color="#FFFFFF" importantForAccessibility="no" />
                                 </TouchableOpacity>
                             )}
                         </View>
 
-                        {/* Tags/Skills (areas_servicio) */}
                         {areasServicio && areasServicio.length > 0 && (
                             <View style={styles.tagsContainer}>
                                 {areasServicio.slice(0, 3).map((area, index) => (
@@ -139,13 +154,12 @@ export function ProfessionalCard({
                             </View>
                         )}
 
-                        {/* Rating y Reviews */}
                         <View style={styles.ratingRow}>
-                            <View style={styles.stars}>
-                                {renderStars()}
+                            <View style={styles.stars} importantForAccessibility="no">
+                                {stars}
                             </View>
                             <Text variant="caption" weight="medium" style={[styles.rating, { marginLeft: 4 }]}>
-                                {(rating && rating > 0 ? rating : 0).toFixed(1)}
+                                {ratingValue.toFixed(1)}
                             </Text>
                             {completedJobs > 0 && (
                                 <Text variant="caption" color={theme.textSecondary} style={[styles.reviews, { marginLeft: 4 }]}>
@@ -159,10 +173,9 @@ export function ProfessionalCard({
                             )}
                         </View>
 
-                        {/* Distancia */}
                         {distance !== undefined && (
                             <View style={styles.distanceRow}>
-                                <Ionicons name="location" size={14} color={theme.primary} style={{ marginRight: 4 }} />
+                                <Ionicons name="location" size={14} color={theme.primary} style={{ marginRight: 4 }} accessibilityElementsHidden />
                                 <Text variant="caption" color={theme.primary} weight="medium" style={styles.distance}>
                                     {formatDistance(distance)}
                                 </Text>
@@ -175,6 +188,8 @@ export function ProfessionalCard({
     );
 }
 
+export const ProfessionalCard = memo(ProfessionalCardInner);
+
 const styles = StyleSheet.create({
     container: {
         width: '100%',
@@ -183,12 +198,12 @@ const styles = StyleSheet.create({
     card: {
         width: '100%',
         padding: 0,
-        borderRadius: 12, // Cambiado de 0 a 12 para cards en carrusel
-        borderWidth: 1, // Agregado borde para cards en carrusel
-        borderColor: '#E5E7EB', // Color de borde
-        borderBottomWidth: 1, // Mantener borde inferior
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderBottomWidth: 1,
         borderBottomColor: '#F3F4F6',
-        backgroundColor: '#FFFFFF', // Fondo blanco para cards
+        backgroundColor: '#FFFFFF',
     },
     content: {
         flexDirection: 'row',
@@ -227,6 +242,18 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#FFFFFF',
     },
+    onlineBadge: {
+        position: 'absolute',
+        bottom: 2,
+        left: 2,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+        backgroundColor: '#10B981',
+        zIndex: 10,
+    },
     info: {
         flex: 1,
     },
@@ -247,9 +274,9 @@ const styles = StyleSheet.create({
         fontSize: 13,
     },
     whatsappButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         alignItems: 'center',
         justifyContent: 'center',
         marginLeft: 12,
@@ -292,4 +319,3 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
 });
-

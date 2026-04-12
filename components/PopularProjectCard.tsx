@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
 import { useTheme } from '@/contexts/ThemeContext';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 
 interface PopularProjectCardProps {
     id: string | number;
@@ -18,44 +18,53 @@ interface PopularProjectCardProps {
     onPress?: () => void;
 }
 
-/**
- * Mapear disciplina a URL de imagen desde Sumeeapp-B/public/images/services
- * Las imágenes están en: Sumeeapp-B/public/images/services/{discipline}.jpg
- * Se sirven desde: https://sumeeapp.com/images/services/{discipline}.jpg
- */
-function getServiceImageUrl(discipline?: string): string | null {
-    if (!discipline) return null;
+// Cargar todas las imágenes en el nivel superior del módulo (requerido por React Native)
+// Esto asegura que las imágenes estén disponibles cuando se necesiten
+const SERVICE_IMAGES: Record<string, any> = {
+    plomeria: require('@/assets/images/services/plomeria.jpg'),
+    electricidad: require('@/assets/images/services/electricidad.jpg'),
+    'aire-acondicionado': require('@/assets/images/services/aire-acondicionado.jpg'),
+    cctv: require('@/assets/images/services/cctv.jpg'),
+    wifi: require('@/assets/images/services/wifi.jpg'),
+    carpinteria: require('@/assets/images/services/carpinteria.jpg'),
+    pintura: require('@/assets/images/services/pintura.jpg'),
+    limpieza: require('@/assets/images/services/limpieza.jpg'),
+    jardineria: require('@/assets/images/services/jardineria.jpg'),
+    tablaroca: require('@/assets/images/services/tablaroca.jpg'),
+    fumigacion: require('@/assets/images/services/fumigacion.jpg'),
+    arquitectos: require('@/assets/images/services/arquitectos.jpg'),
+    construccion: require('@/assets/images/services/construccion.jpg'),
+    'paneles-solares': require('@/assets/images/services/paneles-solares.jpg'),
+    'cargadores-electricos': require('@/assets/images/services/cargadores-electricos.jpg'),
+    'montaje-armado': require('@/assets/images/services/montaje-armado.jpg'),
+};
+
+function getServiceImageSource(discipline?: string): any {
+    if (!discipline) {
+        return null;
+    }
     
-    // Mapeo de disciplinas a nombres de archivo de imágenes
-    // Basado en las imágenes disponibles en Sumeeapp-B/public/images/services/
-    const disciplineImageMap: Record<string, string> = {
-        'plomeria': 'plomeria',
-        'electricidad': 'electricidad',
-        'aire-acondicionado': 'aire-acondicionado',
-        'cctv': 'cctv',
-        'wifi': 'wifi',
-        'carpinteria': 'carpinteria',
-        'pintura': 'pintura',
-        'limpieza': 'limpieza',
-        'jardineria': 'jardineria',
-        'tablaroca': 'tablaroca',
-        'fumigacion': 'fumigacion',
-        'arquitectos-ingenieros': 'arquitectos',
-        'arquitectos': 'arquitectos',
-        'construccion': 'construccion',
-        // Fallbacks para disciplinas sin imagen específica
-        'armado': 'carpinteria',
-        'montaje': 'construccion',
-        'cargadores-electricos': 'electricidad',
-        'paneles-solares': 'electricidad',
-    };
+    const d = discipline.toLowerCase().trim();
     
-    const imageName = disciplineImageMap[discipline.toLowerCase()];
-    if (!imageName) return null;
+    // Mapeo resiliente usando palabras clave
+    if (d.includes('plomeria')) return SERVICE_IMAGES['plomeria'];
+    if (d.includes('electrica') || d.includes('electricidad')) return SERVICE_IMAGES['electricidad'];
+    if (d.includes('aire') || d.includes('clima') || d.includes('ac')) return SERVICE_IMAGES['aire-acondicionado'];
+    if (d.includes('cctv')) return SERVICE_IMAGES['cctv'];
+    if (d.includes('wifi')) return SERVICE_IMAGES['wifi'];
+    if (d.includes('carpinte')) return SERVICE_IMAGES['carpinteria'];
+    if (d.includes('pintura')) return SERVICE_IMAGES['pintura'];
+    if (d.includes('limpieza')) return SERVICE_IMAGES['limpieza'];
+    if (d.includes('jardi')) return SERVICE_IMAGES['jardineria'];
+    if (d.includes('tablaroca')) return SERVICE_IMAGES['tablaroca'];
+    if (d.includes('fumiga')) return SERVICE_IMAGES['fumigacion'];
+    if (d.includes('arquitect') || d.includes('ingeni')) return SERVICE_IMAGES['arquitectos'];
+    if (d.includes('construc')) return SERVICE_IMAGES['construccion'];
+    if (d.includes('solar') || d.includes('panel')) return SERVICE_IMAGES['paneles-solares'];
+    if (d.includes('cargador') || d.includes('ev')) return SERVICE_IMAGES['cargadores-electricos'];
+    if (d.includes('montaje') || d.includes('armado') || d.includes('mueble') || d.includes('soporte')) return SERVICE_IMAGES['montaje-armado'];
     
-    // URL base: Next.js sirve archivos de /public en la raíz
-    // Sumeeapp-B/public/images/services/ → https://sumeeapp.com/images/services/
-    return `https://sumeeapp.com/images/services/${imageName}.jpg`;
+    return null;
 }
 
 export function PopularProjectCard({
@@ -71,7 +80,7 @@ export function PopularProjectCard({
 }: PopularProjectCardProps) {
     const { theme } = useTheme();
     const [imageError, setImageError] = useState(false);
-    const imageUrl = getServiceImageUrl(discipline);
+    const imageSource = getServiceImageSource(discipline);
 
     const formatCompletedCount = (count: number): string => {
         if (count >= 1000) {
@@ -92,7 +101,7 @@ export function PopularProjectCard({
             {/* Badge "Precio Fijo" con alto contraste */}
             <View style={[styles.badge, { backgroundColor: '#FFFFFF' }]}>
                 <View style={styles.badgeInner}>
-                    <Text variant="caption" weight="bold" style={[styles.badgeText, { color: SUMEE_COLORS.GREEN }]}>
+                    <Text variant="caption" weight="bold" style={[styles.badgeText, { color: TULBOX_COLORS.GREEN }]}>
                         Precio Fijo
                     </Text>
                 </View>
@@ -100,14 +109,22 @@ export function PopularProjectCard({
 
             {/* Imagen del servicio o fallback a icono */}
             <View style={[styles.imageContainer, { backgroundColor }]}>
-                {imageUrl && !imageError ? (
+                {imageSource && !imageError ? (
                     <>
                         <Image
-                            source={{ uri: imageUrl }}
+                            source={imageSource}
                             style={styles.serviceImage}
                             resizeMode="cover"
-                            onError={() => {
-                                console.log('[PopularProjectCard] Error loading image:', imageUrl);
+                            onLoad={() => {
+                                console.log('[PopularProjectCard] ✅ Image loaded:', discipline);
+                            }}
+                            onError={(error) => {
+                                // Solo loggear una vez por imagen para evitar spam
+                                if (!imageError) {
+                                    console.warn('[PopularProjectCard] ⚠️ Image failed, using fallback:', {
+                                        discipline,
+                                    });
+                                }
                                 setImageError(true);
                             }}
                         />
@@ -146,7 +163,7 @@ export function PopularProjectCard({
                 {/* Completados */}
                 {completedCount > 0 && (
                     <View style={styles.completedRow}>
-                        <Ionicons name="checkmark-circle" size={14} color={SUMEE_COLORS.GREEN} />
+                        <Ionicons name="checkmark-circle" size={14} color={TULBOX_COLORS.GREEN} />
                         <Text variant="caption" color={theme.textSecondary} style={styles.completedText}>
                             {formatCompletedCount(completedCount)} completados
                         </Text>
@@ -200,7 +217,6 @@ const styles = StyleSheet.create({
     badgeInner: {
         paddingHorizontal: 10,
         paddingVertical: 6,
-        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         // Fondo con opacidad para mejor contraste
         backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -208,7 +224,7 @@ const styles = StyleSheet.create({
     badgeText: {
         fontSize: 11,
         fontWeight: '700',
-        color: SUMEE_COLORS.GREEN,
+        color: TULBOX_COLORS.GREEN,
         // Sombra de texto para mejor legibilidad
         textShadowColor: 'rgba(255, 255, 255, 0.8)',
         textShadowOffset: { width: 0, height: 1 },

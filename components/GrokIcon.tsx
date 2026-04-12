@@ -20,10 +20,10 @@ export function GrokIcon({ size = 24, color }: GrokIconProps) {
 
     return (
         <View style={[styles.container, { width: size, height: size }]}>
-            <Ionicons 
-                name="flash" 
-                size={size} 
-                color={iconColor} 
+            <Ionicons
+                name="flash"
+                size={size}
+                color={iconColor}
             />
         </View>
     );

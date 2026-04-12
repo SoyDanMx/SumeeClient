@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { useRouter, useSegments } from 'expo-router';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { UserRole, isClientProfileEitherField } from '@/constants/roles';
 
 type AuthContextType = {
     user: User | null;
@@ -15,6 +16,7 @@ type AuthContextType = {
     signOut: () => Promise<void>;
     profile: any | null;
     reloadProfile: () => Promise<void>;
+    setHasSeenWelcome: (value: boolean) => void;
 };
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -24,6 +26,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [profile, setProfile] = useState<any | null>(null);
+    const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean | null>(null);
     const router = useRouter();
     const segments = useSegments();
 
@@ -34,20 +37,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => {
         checkUser();
+        checkWelcomeStatus();
 
         // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log('[Auth] Auth state changed:', event);
-            
+
             if (event === 'SIGNED_OUT' || !session) {
                 setUser(null);
                 setSession(null);
                 setProfile(null);
-                setIsLoading(false); // IMPORTANTE: Establecer isLoading en false al cerrar sesión
+                setIsLoading(false);
             } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                 if (session?.user) {
                     await loadUserProfile(session.user, session);
                 }
+            }
+        });
+
+        // Errores de token (p. ej. refresh token inválido) no deben mostrarse como error crítico
+        supabase.auth.getSession().then(({ error }) => {
+            if (error && /invalid refresh token|refresh token not found/i.test(String(error.message))) {
+                supabase.auth.signOut({ scope: 'local' }).catch(() => {});
             }
         });
 
@@ -56,60 +67,77 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, []);
 
+    async function checkWelcomeStatus() {
+        try {
+            const { Platform } = require('react-native');
+            let shown = null;
+
+            if (Platform.OS === 'web') {
+                shown = localStorage.getItem('sumee_client_welcome_shown');
+            } else {
+                const SecureStore = require('expo-secure-store');
+                shown = await SecureStore.getItemAsync('sumee_client_welcome_shown');
+            }
+
+            setHasSeenWelcome(shown === 'true');
+        } catch (error) {
+            console.error('[Auth] Error checking welcome status:', error);
+            setHasSeenWelcome(false);
+        }
+    }
+
     // Navigate based on auth state
     useEffect(() => {
-        if (isLoading) return;
+        if (isLoading || hasSeenWelcome === null) return;
 
-        // Calcular isAuthenticated directamente aquí para evitar problemas de inicialización
         const isAuth = !!user && !!session;
-
         const inAuthGroup = segments[0] === 'auth';
         const inTabsGroup = segments[0] === '(tabs)';
         const inOnboardingGroup = segments[0] === 'onboarding';
 
-        if (!isAuth && !inAuthGroup) {
-            // Redirect to auth if not authenticated
-            router.replace('/auth/login');
-        } else if (isAuth) {
-            // Verificar si ha completado el onboarding
-            // IMPORTANTE: Si profile es null o onboarding_completed es null/false, mostrar welcome
+        console.log('[Auth] Redirect Check:', { isAuth, segments, hasSeenWelcome });
+
+        if (!isAuth) {
+            // Usuario NO Autenticado
+            if (!hasSeenWelcome && segments[0] !== 'onboarding') {
+                // Si no ha visto welcome, forzar welcome
+                router.replace('/onboarding/welcome');
+            } else if (hasSeenWelcome && !inAuthGroup && !inOnboardingGroup) {
+                // Si ya vio welcome, forzar login
+                router.replace('/auth/login');
+            }
+        } else {
+            // Usuario Autenticado
             const hasCompletedOnboarding = profile?.onboarding_completed === true;
-            
-            console.log('[Auth] Navigation check:', {
-                hasProfile: !!profile,
-                onboardingCompleted: profile?.onboarding_completed,
-                hasCompletedOnboarding,
-                inOnboardingGroup,
-                inTabsGroup,
-                inAuthGroup,
-                currentSegment: segments[0],
-            });
-            
+
             if (!hasCompletedOnboarding && !inOnboardingGroup) {
-                // Primera vez → mostrar onboarding
-                console.log('[Auth] ✅ User has not completed onboarding, redirecting to welcome');
                 router.replace('/onboarding/welcome');
-            } else if (hasCompletedOnboarding && inAuthGroup) {
-                // Ya completó onboarding → ir a home
-                console.log('[Auth] ✅ User completed onboarding, redirecting to home');
+            } else if (hasCompletedOnboarding && (inAuthGroup || inOnboardingGroup)) {
                 router.replace('/(tabs)');
-            } else if (hasCompletedOnboarding && inOnboardingGroup) {
-                // Ya completó pero está en onboarding → ir a home
-                console.log('[Auth] ✅ User completed onboarding but in onboarding group, redirecting to home');
-                router.replace('/(tabs)');
-            } else if (!hasCompletedOnboarding && inTabsGroup) {
-                // No completó pero está en tabs → ir a welcome
-                console.log('[Auth] ✅ User has not completed onboarding but in tabs, redirecting to welcome');
-                router.replace('/onboarding/welcome');
             }
         }
-    }, [user, session, isLoading, segments, profile, router]);
+    }, [user, session, isLoading, segments, profile, hasSeenWelcome, router]);
 
     async function checkUser() {
         try {
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            
-            if (sessionError || !session || !session.user) {
+
+            // Token de refresco inválido o no encontrado: limpiar sesión local para no reintentar
+            if (sessionError) {
+                const msg = String(sessionError.message || '');
+                if (/invalid refresh token|refresh token not found/i.test(msg)) {
+                    try {
+                        await supabase.auth.signOut({ scope: 'local' });
+                    } catch (_) {}
+                }
+                setUser(null);
+                setSession(null);
+                setProfile(null);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!session || !session.user) {
                 setUser(null);
                 setSession(null);
                 setProfile(null);
@@ -119,7 +147,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             await loadUserProfile(session.user, session);
         } catch (error) {
-            console.error('[Auth] Error checking user:', error);
+            const msg = String((error as Error)?.message || '');
+            if (/invalid refresh token|refresh token not found/i.test(msg)) {
+                try {
+                    await supabase.auth.signOut({ scope: 'local' });
+                } catch (_) {}
+            }
             setUser(null);
             setSession(null);
             setProfile(null);
@@ -131,7 +164,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     async function loadUserProfile(user: User, session: Session | null = null) {
         try {
             console.log('[Auth] Loading profile for user:', user.id);
-            
+
             // Fetch client profile - usar maybeSingle() para manejar cuando no existe
             const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
@@ -147,7 +180,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     details: profileError.details,
                     hint: profileError.hint,
                 });
-                
+
                 // Si hay un error real (no solo que no existe), manejar
                 if (profileError.code !== 'PGRST116') {
                     // Error diferente a "no rows", podría ser RLS u otro problema
@@ -160,15 +193,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             // Si no hay perfil, crear uno básico automáticamente
             if (!profileData) {
                 console.log('[Auth] Profile does not exist, creating basic profile...');
-                
+
+                const fallbackName = user.email
+                    ? user.email.split('@')[0]
+                    : user.phone
+                        ? `Usuario ${user.phone.slice(-4)}`
+                        : 'Usuario TulBox';
+
                 const { data: newProfile, error: createError } = await supabase
                     .from('profiles')
                     .insert({
                         user_id: user.id,
-                        email: user.email || '',
-                        full_name: user.email?.split('@')[0] || 'Usuario',
-                        role: 'client',
-                        user_type: 'client',
+                        email: user.email || null,
+                        phone: user.phone || null,
+                        full_name: fallbackName,
+                        role: UserRole.CLIENT,
+                        user_type: UserRole.CLIENT,
                         onboarding_completed: false, // IMPORTANTE: Por defecto false para mostrar welcome
                     })
                     .select()
@@ -190,7 +230,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 }
 
                 console.log('[Auth] ✅ Profile created successfully');
-                
+
                 // IMPORTANTE: Establecer user, session y profile para que isAuthenticated sea true
                 setUser(user);
                 setSession(session);
@@ -206,12 +246,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 email: profileData?.email,
             });
 
-            // Only allow client users
-            const isClient = 
-                profileData?.user_type === 'client' ||
-                profileData?.user_type === 'cliente' ||
-                profileData?.role === 'client' ||
-                profileData?.role === 'cliente';
+            // Solo clientes (cualquier columna coherente con cliente)
+            const isClient = isClientProfileEitherField(profileData);
 
             if (!isClient) {
                 console.warn('[Auth] User is not a client:', {
@@ -244,7 +280,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     async function signInWithEmail(email: string, password: string) {
         try {
             console.log('[Auth] Attempting to sign in with email:', email);
-            
+
             const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
@@ -256,7 +292,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             console.log('[Auth] Sign in successful, loading profile...');
-            
+
             if (data.user && data.session) {
                 await loadUserProfile(data.user, data.session);
             }
@@ -292,8 +328,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                         user_id: data.user.id,
                         email: email,
                         full_name: fullName,
-                        user_type: 'client',
-                        role: 'client',
+                        user_type: UserRole.CLIENT,
+                        role: UserRole.CLIENT,
                     });
 
                 if (profileError) {
@@ -312,6 +348,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     async function signInWithPhone(phone: string) {
         try {
+            /** SMS estándar (Supabase Auth): sin `options.channel` usa el proveedor SMS por defecto. */
             const { error } = await supabase.auth.signInWithOtp({
                 phone,
             });
@@ -381,6 +418,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 signOut,
                 profile,
                 reloadProfile,
+                setHasSeenWelcome: (value: boolean) => setHasSeenWelcome(value),
             }}
         >
             {children}

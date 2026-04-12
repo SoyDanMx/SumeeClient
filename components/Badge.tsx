@@ -1,24 +1,27 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
 import { useTheme } from '@/contexts/ThemeContext';
 
-type BadgeVariant = 
-    | 'fixed-price' 
-    | 'verified' 
-    | 'guarantee' 
+type BadgeVariant =
+    | 'fixed-price'
+    | 'verified'
+    | 'guarantee'
     | 'fast-response'
     | 'popular'
-    | 'new';
+    | 'new'
+    | 'danger'
+    | 'cancelled';
 
 interface BadgeProps {
     variant: BadgeVariant;
     children?: React.ReactNode;
     icon?: keyof typeof Ionicons.glyphMap;
+    style?: ViewStyle;
 }
 
-export function Badge({ variant, children, icon }: BadgeProps) {
+export function Badge({ variant, children, icon, style }: BadgeProps) {
     const { theme } = useTheme();
 
     const getConfig = () => {
@@ -65,6 +68,14 @@ export function Badge({ variant, children, icon }: BadgeProps) {
                     text: 'Nuevo',
                     defaultIcon: 'sparkles' as keyof typeof Ionicons.glyphMap,
                 };
+            case 'danger':
+            case 'cancelled':
+                return {
+                    backgroundColor: theme.error + '20',
+                    color: theme.error,
+                    text: variant === 'cancelled' ? 'Cancelado' : 'Error',
+                    defaultIcon: 'close-circle' as keyof typeof Ionicons.glyphMap,
+                };
             default:
                 return {
                     backgroundColor: theme.surface,
@@ -80,11 +91,11 @@ export function Badge({ variant, children, icon }: BadgeProps) {
     const displayText = children || config.text;
 
     return (
-        <View style={[styles.badge, { backgroundColor: config.backgroundColor }]}>
+        <View style={[styles.badge, { backgroundColor: config.backgroundColor }, style]}>
             <Ionicons name={displayIcon} size={12} color={config.color} style={styles.icon} />
-            <Text 
-                variant="caption" 
-                weight="bold" 
+            <Text
+                variant="caption"
+                weight="bold"
                 style={[styles.text, { color: config.color }]}
             >
                 {displayText}
@@ -110,4 +121,3 @@ const styles = StyleSheet.create({
         lineHeight: 12,
     },
 });
-

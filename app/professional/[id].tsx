@@ -16,6 +16,8 @@ import { Text } from '@/components/Text';
 import { Button } from '@/components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { Skeleton } from '@/components/Skeleton';
+import { hapticFeedback } from '@/utils/haptics';
 
 export default function ProfessionalDetailScreen() {
     const { theme } = useTheme();
@@ -83,8 +85,30 @@ export default function ProfessionalDetailScreen() {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
                 <StatusBar style="dark" />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.primary} />
+                <View style={styles.skeletonContainer}>
+                    <View style={styles.skeletonHeader}>
+                        <Skeleton width="100%" height={200} />
+                    </View>
+                    <View style={styles.skeletonContent}>
+                        <View style={styles.skeletonAvatarWrapper}>
+                            <Skeleton width={100} height={100} borderRadius={50} />
+                        </View>
+                        <Skeleton width="60%" height={28} style={{ alignSelf: 'center', marginTop: 12 }} />
+                        <Skeleton width="40%" height={16} style={{ alignSelf: 'center', marginTop: 8 }} />
+                        
+                        <View style={styles.skeletonStatsRow}>
+                            <Skeleton width="30%" height={60} borderRadius={12} />
+                            <Skeleton width="30%" height={60} borderRadius={12} />
+                            <Skeleton width="30%" height={60} borderRadius={12} />
+                        </View>
+                        
+                        <View style={{ marginTop: 32, gap: 16 }}>
+                            <Skeleton width="90%" height={18} />
+                            <Skeleton width="100%" height={14} />
+                            <Skeleton width="100%" height={14} />
+                            <Skeleton width="80%" height={14} />
+                        </View>
+                    </View>
                 </View>
             </SafeAreaView>
         );
@@ -93,10 +117,13 @@ export default function ProfessionalDetailScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
             <StatusBar style="dark" />
-            
+
             <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
                 <TouchableOpacity
-                    onPress={() => router.back()}
+                    onPress={() => {
+                        hapticFeedback.light();
+                        router.back();
+                    }}
                     style={styles.backButton}
                 >
                     <Ionicons name="arrow-back" size={24} color={theme.text} />
@@ -119,19 +146,19 @@ export default function ProfessionalDetailScreen() {
                             <Ionicons name="person" size={48} color={theme.primary} />
                         </View>
                     )}
-                    
+
                     <Text variant="h2" weight="bold" style={styles.name}>
                         {professional?.full_name}
                     </Text>
-                    
-                    {professional?.specialties && (
+
+                    {!!professional?.specialties && (
                         <Text variant="body" color={theme.textSecondary} style={styles.specialty}>
                             {professional.specialties}
                         </Text>
                     )}
 
                     <View style={styles.statsContainer}>
-                        {professional?.rating && (
+                        {typeof professional?.rating === 'number' && (
                             <View style={styles.stat}>
                                 <Ionicons name="star" size={20} color="#F59E0B" />
                                 <Text variant="body" weight="bold">
@@ -139,7 +166,7 @@ export default function ProfessionalDetailScreen() {
                                 </Text>
                             </View>
                         )}
-                        {professional?.completed_jobs && (
+                        {typeof professional?.completed_jobs === 'number' && professional.completed_jobs > 0 && (
                             <View style={styles.stat}>
                                 <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
                                 <Text variant="body" weight="bold">
@@ -150,7 +177,7 @@ export default function ProfessionalDetailScreen() {
                     </View>
                 </View>
 
-                {professional?.bio && (
+                {!!professional?.bio && (
                     <View style={[styles.section, { backgroundColor: theme.card }]}>
                         <Text variant="h3" weight="bold" style={styles.sectionTitle}>
                             Sobre mí
@@ -179,7 +206,7 @@ export default function ProfessionalDetailScreen() {
                                         </Text>
                                     </View>
                                 </View>
-                                {review.comment && (
+                                {!!review.comment && (
                                     <Text variant="caption" color={theme.textSecondary} style={styles.reviewComment}>
                                         {review.comment}
                                     </Text>
@@ -205,10 +232,23 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    loadingContainer: {
+    skeletonContainer: {
         flex: 1,
-        justifyContent: 'center',
+    },
+    skeletonHeader: {
+        height: 200,
+    },
+    skeletonContent: {
+        paddingHorizontal: 20,
+    },
+    skeletonAvatarWrapper: {
+        marginTop: -50,
         alignItems: 'center',
+    },
+    skeletonStatsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 24,
     },
     header: {
         flexDirection: 'row',

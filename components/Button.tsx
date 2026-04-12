@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchableOpacity, ActivityIndicator, StyleSheet, TouchableOpacityProps, View } from 'react-native';
 import { Text } from './Text';
 import { useTheme } from '@/contexts/ThemeContext';
+import { hapticFeedback } from '@/utils/haptics';
 
 interface ButtonProps extends TouchableOpacityProps {
     title: string;
@@ -11,7 +12,7 @@ interface ButtonProps extends TouchableOpacityProps {
     icon?: React.ReactNode;
 }
 
-export function Button({ title, variant = 'primary', size = 'md', loading, icon, style, disabled, ...props }: ButtonProps) {
+export function Button({ title, variant = 'primary', size = 'md', loading, icon, style, disabled, onPress, ...props }: ButtonProps) {
     const { theme } = useTheme();
 
     const getBgColor = () => {
@@ -46,6 +47,11 @@ export function Button({ title, variant = 'primary', size = 'md', loading, icon,
         }
     };
 
+    const handlePress = (e: any) => {
+        hapticFeedback.light();
+        if (onPress) onPress(e);
+    };
+
     return (
         <TouchableOpacity
                 style={[
@@ -59,6 +65,7 @@ export function Button({ title, variant = 'primary', size = 'md', loading, icon,
                 style
             ]}
             disabled={disabled || loading}
+            onPress={handlePress}
             {...props}
         >
             {loading ? (

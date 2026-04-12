@@ -7,6 +7,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -21,7 +22,7 @@ import { Badge } from '@/components/Badge';
 import { QuoteService, ServiceQuote, ServiceQuoteFormData } from '@/services/quotes';
 import { CategoryService } from '@/services/categories';
 import { supabase } from '@/lib/supabase';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 import { useServiceRequestValidation } from '@/hooks/useServiceRequestValidation';
 import { SmartServiceRequestButton } from '@/components/SmartServiceRequestButton';
 
@@ -160,6 +161,41 @@ export default function ServiceDetailScreen() {
         }
 
         try {
+            // Fecha: estado local o formulario (evita params vacíos en confirmación / lead bloqueado)
+            const rawDay = selectedDate || formData.selected_date;
+            let dateParam = '';
+            if (rawDay && typeof rawDay === 'string') {
+                try {
+                    if (rawDay.includes('-')) {
+                        const isToday = rawDay === getAvailableDays()[0].date;
+                        const dateObj = new Date(rawDay);
+                        if (isToday) {
+                            dateObj.setHours(new Date().getHours());
+                            dateObj.setMinutes(new Date().getMinutes());
+                        } else {
+                            dateObj.setHours(12, 0, 0, 0);
+                        }
+                        dateParam = dateObj.toISOString();
+                        console.log('[ServiceDetail] Date formatted for navigation:', {
+                            original: rawDay,
+                            formatted: dateParam,
+                            isToday,
+                        });
+                    } else {
+                        dateParam = rawDay;
+                    }
+                } catch (error) {
+                    console.error('[ServiceDetail] Error formatting date:', error);
+                }
+            }
+            
+            console.log('[ServiceDetail] Navigating to confirm with:', {
+                serviceId: service.id,
+                hasQuote: !!quote,
+                hasSelectedDate: !!dateParam,
+                selectedDate: dateParam,
+            });
+            
             // Navegar a pantalla de confirmación con todos los datos
             router.push({
                 pathname: '/request-service/confirm',
@@ -167,11 +203,12 @@ export default function ServiceDetailScreen() {
                     serviceId: service.id,
                     quoteData: JSON.stringify(quote),
                     formData: JSON.stringify(formData),
-                    selectedDate: selectedDate || '',
+                    selectedDate: dateParam,
                 },
             });
         } catch (error) {
             console.error('[ServiceDetail] Error requesting service:', error);
+            Alert.alert('Error', 'No se pudo procesar la solicitud. Por favor intenta de nuevo.');
         }
     };
 
@@ -285,31 +322,9 @@ export default function ServiceDetailScreen() {
                             {/* Servicio Inmediato */}
                             <Card variant="elevated" style={styles.formCard}>
                                 <Text variant="label" weight="medium" style={styles.fieldLabel}>
-                                    ¿Necesitas servicio inmediato?
+                                    ¿Cuándo necesitas el servicio?
                                 </Text>
                                 <View style={styles.optionsRow}>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.optionButton,
-                                            immediateService && {
-                                                backgroundColor: theme.primary,
-                                                borderColor: theme.primary,
-                                            },
-                                            { borderColor: theme.border },
-                                        ]}
-                                        onPress={() => setImmediateService(true)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text
-                                            variant="body"
-                                            weight="medium"
-                                            style={[
-                                                immediateService && { color: '#FFFFFF' },
-                                            ]}
-                                        >
-                                            Sí (+$10)
-                                        </Text>
-                                    </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[
                                             styles.optionButton,
@@ -322,6 +337,12 @@ export default function ServiceDetailScreen() {
                                         onPress={() => setImmediateService(false)}
                                         activeOpacity={0.7}
                                     >
+                                        <Ionicons
+                                            name="calendar-outline"
+                                            size={20}
+                                            color={!immediateService ? '#FFFFFF' : theme.textSecondary}
+                                            style={{ marginRight: 8 }}
+                                        />
                                         <Text
                                             variant="body"
                                             weight="medium"
@@ -329,10 +350,46 @@ export default function ServiceDetailScreen() {
                                                 !immediateService && { color: '#FFFFFF' },
                                             ]}
                                         >
-                                            No
+                                            Programado
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.optionButton,
+                                            immediateService && {
+                                                backgroundColor: '#F59E0B',
+                                                borderColor: '#F59E0B',
+                                            },
+                                            { borderColor: theme.border },
+                                        ]}
+                                        onPress={() => setImmediateService(true)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons
+                                            name="flash-outline"
+                                            size={20}
+                                            color={immediateService ? '#FFFFFF' : theme.textSecondary}
+                                            style={{ marginRight: 8 }}
+                                        />
+                                        <Text
+                                            variant="body"
+                                            weight="medium"
+                                            style={[
+                                                immediateService && { color: '#FFFFFF' },
+                                            ]}
+                                        >
+                                            Inmediato (+$100)
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
+                                {immediateService && (
+                                    <View style={[styles.urgencyBadge, { backgroundColor: '#FEF3C7' }]}>
+                                        <Ionicons name="alert-circle" size={16} color="#D97706" />
+                                        <Text variant="caption" color="#D97706" style={{ marginLeft: 6 }}>
+                                            Urgencia: Servicio prioritario con disponibilidad inmediata
+                                        </Text>
+                                    </View>
+                                )}
                             </Card>
 
                             {/* Preguntas específicas según el servicio */}
@@ -467,23 +524,7 @@ export default function ServiceDetailScreen() {
 
                                 <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                                {/* Descuentos */}
-                                {quote.discounts.length > 0 && (
-                                    <>
-                                        {quote.discounts.map((discount) => (
-                                            <View key={discount.id} style={styles.quoteRow}>
-                                                <Text variant="label" color={theme.success}>
-                                                    {discount.name}
-                                                </Text>
-                                                <Text variant="body" weight="bold" color={theme.success}>
-                                                    -${discount.amount.toFixed(2)}
-                                                </Text>
-                                            </View>
-                                        ))}
-                                    </>
-                                )}
-
-                                <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                                {/* Descuentos eliminados - precio transparente */}
 
                                 {/* Total */}
                                 <View style={styles.totalRow}>
@@ -722,5 +763,12 @@ const styles = StyleSheet.create({
     },
     requestButton: {
         marginTop: 24,
+    },
+    urgencyBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 12,
     },
 });

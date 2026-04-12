@@ -21,11 +21,11 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { TextInput } from 'react-native';
 import { ProfileService, ProfileUpdate } from '@/services/profile';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { TULBOX_COLORS } from '@/constants/Colors';
 
 export default function EditProfileScreen() {
     const { theme } = useTheme();
-    const { user, profile, loadUserProfile } = useAuth();
+    const { user, profile, reloadProfile } = useAuth();
     const router = useRouter();
 
     const [loading, setLoading] = useState(false);
@@ -182,9 +182,9 @@ export default function EditProfileScreen() {
             console.log('[EditProfile] ✅ Profile updated:', updatedProfile);
 
             // Recargar perfil en AuthContext
-            if (loadUserProfile) {
+            if (reloadProfile) {
                 console.log('[EditProfile] Reloading profile in AuthContext...');
-                await loadUserProfile(user, null);
+                await reloadProfile();
             }
 
             Alert.alert('¡Éxito!', 'Tu perfil ha sido actualizado', [
@@ -300,7 +300,7 @@ export default function EditProfileScreen() {
                                     WhatsApp
                                 </Text>
                                 <View style={[styles.inputWrapper, { borderColor: theme.border }]}>
-                                    <Ionicons name="logo-whatsapp" size={20} color={SUMEE_COLORS.GREEN} style={styles.inputIcon} />
+                                    <Ionicons name="logo-whatsapp" size={20} color={TULBOX_COLORS.GREEN} style={styles.inputIcon} />
                                     <TextInput
                                         style={[styles.input, { color: theme.text }]}
                                         placeholder="+52 55 1234 5678"

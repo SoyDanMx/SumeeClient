@@ -14,15 +14,16 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Text } from '@/components/Text';
 import { Card } from '@/components/Card';
 import { Badge } from '@/components/Badge';
-import { CategoryService, ServiceCatalogItem } from '@/services/categories';
-import { SUMEE_COLORS } from '@/constants/Colors';
+import { CategoryService } from '@/services/categories';
+import { ServiceItem } from '@/services/services';
+import { TULBOX_COLORS } from '@/constants/Colors';
 
 export default function ServiceCategoryScreen() {
     const { theme } = useTheme();
     const router = useRouter();
     const { id } = useLocalSearchParams<{ id: string }>();
     
-    const [services, setServices] = useState<ServiceCatalogItem[]>([]);
+    const [services, setServices] = useState<ServiceItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [category, setCategory] = useState<any>(null);
 
@@ -120,7 +121,7 @@ export default function ServiceCategoryScreen() {
                                                 {service.service_name}
                                             </Text>
                                             {service.description && (
-                                                <Text variant="caption" color={theme.textSecondary} numberOfLines={2}>
+                                                <Text variant="caption" color={theme.textSecondary} numberOfLines={4} style={styles.serviceDescription}>
                                                     {service.description}
                                                 </Text>
                                             )}
@@ -196,6 +197,12 @@ const styles = StyleSheet.create({
     },
     serviceName: {
         marginBottom: 8,
+    },
+    serviceDescription: {
+        marginTop: 4,
+        marginBottom: 12,
+        lineHeight: 18,
+        minHeight: 54, // Espacio para aproximadamente 3 líneas
     },
     serviceFooter: {
         marginTop: 12,

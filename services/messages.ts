@@ -1,8 +1,9 @@
 import { supabase } from '@/lib/supabase';
+import { isProfessionalProfileRow } from '@/constants/roles';
 
 /**
  * Messages Service - Gestión de mensajes para clientes
- * Alineado con SumeePros y Web
+ * Alineado con TulBoxPros y Web
  */
 
 export interface Message {
@@ -46,6 +47,7 @@ export class MessagesService {
                     status,
                     estado,
                     professional_id,
+                    profesional_asignado_id,
                     updated_at
                 `)
                 .eq('cliente_id', clientId)
@@ -64,8 +66,11 @@ export class MessagesService {
             const conversations: Conversation[] = [];
 
             for (const lead of leadsWithMessages) {
+                const resolvedProfessionalId =
+                    (lead as any).professional_id || (lead as any).profesional_asignado_id || null;
+
                 // Obtener último mensaje (sin .single() para evitar error si no hay mensajes)
-                const { data: lastMessages, error: messageError } = await supabase
+                const { data: lastMessages } = await supabase
                     .from('messages')
                     .select('*')
                     .eq('lead_id', lead.id)
@@ -73,6 +78,11 @@ export class MessagesService {
                     .limit(1);
 
                 const lastMessage = lastMessages && lastMessages.length > 0 ? lastMessages[0] : null;
+
+                /** Solo hilos con profesional asignado o con conversación ya iniciada */
+                if (!resolvedProfessionalId && !lastMessage) {
+                    continue;
+                }
 
                 // Contar mensajes no leídos (mensajes del profesional que no ha leído el cliente)
                 let unreadCount = 0;
@@ -117,13 +127,13 @@ export class MessagesService {
                 let professionalName: string | undefined;
                 let professionalAvatar: string | undefined;
                 
-                if (lead.professional_id) {
+                if (resolvedProfessionalId) {
                     try {
                         const { data: professionalData } = await supabase
                             .from('profiles')
                             .select('full_name, avatar_url')
-                            .eq('user_id', lead.professional_id)
-                            .single();
+                            .eq('user_id', resolvedProfessionalId)
+                            .maybeSingle();
                         
                         if (professionalData) {
                             professionalName = professionalData.full_name || undefined;
@@ -139,8 +149,10 @@ export class MessagesService {
                     lead_id: lead.id,
                     lead_title: lead.servicio_solicitado || lead.servicio || 'Servicio',
                     lead_status: lead.status || lead.estado || 'pending',
-                    professional_id: lead.professional_id || undefined,
-                    professional_name: professionalName,
+                    professional_id: resolvedProfessionalId || undefined,
+                    professional_name:
+                        professionalName ||
+                        (resolvedProfessionalId ? 'Profesional' : 'Sin asignar'),
                     professional_avatar: professionalAvatar,
                     last_message: lastMessage ? {
                         id: lastMessage.id,
@@ -189,7 +201,7 @@ export class MessagesService {
             const senderIds = [...new Set(data.map((msg: any) => msg.sender_id))];
             const { data: sendersData } = await supabase
                 .from('profiles')
-                .select('user_id, full_name, avatar_url, role')
+                .select('user_id, full_name, avatar_url, role, user_type')
                 .in('user_id', senderIds);
 
             const sendersMap = new Map(
@@ -208,8 +220,11 @@ export class MessagesService {
                     updated_at: msg.updated_at,
                     sender_name: sender?.full_name || 'Usuario',
                     sender_avatar: sender?.avatar_url || undefined,
-                    sender_type: sender?.role === 'profesional' || sender?.role === 'professional' 
-                        ? 'professional' 
+                    sender_type: isProfessionalProfileRow({
+                        role: sender?.role,
+                        user_type: (sender as any)?.user_type,
+                    })
+                        ? 'professional'
                         : 'client',
                 };
             });
@@ -265,7 +280,6 @@ export class MessagesService {
      */
     static async markAsRead(leadId: string, clientId: string): Promise<boolean> {
         try {
-            // Marcar todos los mensajes del lead que no son del cliente como leídos
             const { error } = await supabase
                 .from('messages')
                 .update({ read_at: new Date().toISOString() })
@@ -320,19 +334,36 @@ export class MessagesService {
     /**
      * Suscribirse a conversaciones (para actualizar inbox)
      */
-    static subscribeToConversations(
-        clientId: string,
-        callback: () => void
-    ) {
+    /**
+     * Realtime: Supabase solo permite filtros `eq` en postgres_changes.
+     * Filtramos en cliente comprobando que el mensaje pertenezca a un lead del cliente.
+     */
+    static subscribeToConversations(clientId: string, callback: () => void) {
         const channel = supabase
             .channel(`conversations:${clientId}`)
             .on(
                 'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'messages' },
+                async (payload) => {
+                    const leadId = (payload.new as { lead_id?: string })?.lead_id;
+                    if (!leadId) return;
+                    const { data } = await supabase
+                        .from('leads')
+                        .select('cliente_id')
+                        .eq('id', leadId)
+                        .maybeSingle();
+                    if (data?.cliente_id === clientId) {
+                        callback();
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
                 {
-                    event: '*',
+                    event: 'UPDATE',
                     schema: 'public',
-                    table: 'messages',
-                    filter: `sender_id=neq.${clientId}`,
+                    table: 'leads',
+                    filter: `cliente_id=eq.${clientId}`,
                 },
                 () => {
                     callback();

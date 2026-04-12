@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { ServiceQuoteFormData, ServiceQuote } from '@/services/quotes';
 
 export interface ValidationState {
@@ -12,7 +12,14 @@ interface UseServiceRequestValidationProps {
     formData: ServiceQuoteFormData;
     quote: ServiceQuote | null;
     service: any;
-    selectedDate?: string;
+    /** Fecha acordada: puede venir de la URL o de `formData.selected_date` (Expo Router a veces omite params). */
+    selectedDate?: string | string[];
+}
+
+function normalizeRouteParam(v: string | string[] | undefined): string {
+    if (v == null) return '';
+    const raw = Array.isArray(v) ? v[0] : v;
+    return raw != null ? String(raw).trim() : '';
 }
 
 export function useServiceRequestValidation({
@@ -21,20 +28,17 @@ export function useServiceRequestValidation({
     service,
     selectedDate,
 }: UseServiceRequestValidationProps): ValidationState {
-    const [validation, setValidation] = useState<ValidationState>({
-        isValid: false,
-        missingFields: [],
-        errors: {},
-        canSubmit: false,
-    });
-
-    useEffect(() => {
-        validateForm();
-    }, [formData, quote, service, selectedDate]);
-
-    const validateForm = () => {
+    // Usar useMemo en lugar de useState + useEffect para evitar loops infinitos
+    const validation = useMemo(() => {
         const missingFields: string[] = [];
         const errors: Record<string, string> = {};
+
+        const fromParam = normalizeRouteParam(selectedDate);
+        const fromForm =
+            formData.selected_date != null && String(formData.selected_date).trim().length > 0
+                ? String(formData.selected_date).trim()
+                : '';
+        const appointmentDay = fromParam || fromForm;
 
         // Validar que haya un servicio seleccionado
         if (!service || !service.id) {
@@ -48,22 +52,31 @@ export function useServiceRequestValidation({
             errors.cotizacion = 'Debes completar el formulario para obtener una cotización';
         }
 
-        // Validar que haya una fecha seleccionada (si aplica)
-        if (!selectedDate) {
+        // Fecha: params o cotización (misma fuente que al navegar desde detalle de servicio)
+        if (!appointmentDay) {
             missingFields.push('fecha');
             errors.fecha = 'Debes seleccionar una fecha para el servicio';
         }
 
-        // Validar descripción del problema (mínimo 20 caracteres)
+        // Validar descripción del problema (más flexible)
+        // La descripción puede venir de múltiples campos o del nombre del servicio
         const description = 
             formData.description || 
             formData.problem_description || 
             formData.additionalInfo || 
+            formData.service_description ||
             '';
         
-        if (description.length < 20) {
+        // Si no hay descripción en formData, usar nombre del servicio como fallback
+        const hasDescription = description && description.trim().length >= 5;
+        const hasServiceName = service?.service_name && service.service_name.length >= 5;
+        
+        // La descripción es válida si:
+        // 1. Tiene al menos 5 caracteres en algún campo, O
+        // 2. El nombre del servicio tiene al menos 5 caracteres (se usará como fallback)
+        if (!hasDescription && !hasServiceName) {
             missingFields.push('descripción');
-            errors.descripcion = 'La descripción debe tener al menos 20 caracteres';
+            errors.descripcion = 'Completa la descripción del servicio';
         }
 
         // Validar tipo de servicio (si aplica)
@@ -72,15 +85,23 @@ export function useServiceRequestValidation({
         }
 
         const isValid = missingFields.length === 0 && Object.keys(errors).length === 0;
-        const canSubmit = isValid && !!quote && !!service && !!selectedDate;
+        const canSubmit = isValid && !!quote && !!service && !!appointmentDay;
 
-        setValidation({
+        return {
             isValid,
             missingFields,
             errors,
             canSubmit,
-        });
-    };
+        };
+    }, [
+        // Dependencias: usar JSON.stringify para objetos o valores primitivos
+        // Esto asegura que solo se recalcule cuando los valores realmente cambian
+        JSON.stringify(formData),
+        quote?.id || null,
+        service?.id || null,
+        service?.service_name || null,
+        typeof selectedDate === 'string' ? selectedDate : Array.isArray(selectedDate) ? selectedDate.join(',') : '',
+    ]);
 
     return validation;
 }

@@ -45,7 +45,7 @@ export async function getAddressSuggestions(
         const response = await fetch(url, {
             method: 'GET',
             headers: {
-                'User-Agent': 'SumeeApp/1.0',
+                'User-Agent': 'TulBoxApp/1.0',
                 'Accept': 'application/json',
                 'Accept-Language': 'es-MX,es;q=0.9',
             },

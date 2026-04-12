@@ -33,8 +33,9 @@ export function Card({ style, variant = 'elevated', padding = 'md', ...props }: 
                 },
                 style
             ]}
-            {...props}
-        />
+        >
+            {props.children}
+        </View>
     );
 }
 
