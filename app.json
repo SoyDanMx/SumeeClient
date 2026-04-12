@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tulbox.client",
+      "bundleIdentifier": "com.sumee.client",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "package": "com.tulbox.client",
+      "package": "com.sumee.client",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#820AD1"
