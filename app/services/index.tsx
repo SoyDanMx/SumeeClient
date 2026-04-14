@@ -339,9 +339,7 @@ function ServiceCard({ service, onPress }: { service: ServiceItem; onPress: () =
                                 {service.service_name}
                             </Text>
                             {service.is_popular && (
-                                <Badge variant="popular" style={styles.popularBadge}>
-                                    Popular
-                                </Badge>
+                                <Badge variant="popular" label="Popular" style={styles.popularBadge} />
                             )}
                         </View>
                         {service.description && (
@@ -352,19 +350,13 @@ function ServiceCard({ service, onPress }: { service: ServiceItem; onPress: () =
                         <View style={styles.serviceFooter}>
                             <View style={styles.badgesContainer}>
                                 {service.service_type === 'express' && (
-                                    <Badge variant="verified" style={styles.badge}>
-                                        Express
-                                    </Badge>
+                                    <Badge variant="verified" label="Express" style={styles.badge} />
                                 )}
                                 {service.price_type === 'fixed' && (
-                                    <Badge variant="guarantee" style={styles.badge}>
-                                        Precio Fijo
-                                    </Badge>
+                                    <Badge variant="guarantee" label="Precio Fijo" style={styles.badge} />
                                 )}
                                 {service.badge_tags?.includes('urgencias') && (
-                                    <Badge variant="popular" style={styles.badge}>
-                                        Urgencias
-                                    </Badge>
+                                    <Badge variant="popular" label="Urgencias" style={styles.badge} />
                                 )}
                             </View>
                             <Text variant="h3" weight="bold" color={theme.primary} style={styles.servicePrice}>

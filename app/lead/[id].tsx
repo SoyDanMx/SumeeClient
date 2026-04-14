@@ -216,13 +216,13 @@ export default function LeadDetailScreen() {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'pending':
-                return <Badge variant="fast-response">Pendiente</Badge>;
+                return <Badge variant="fast-response" label="Pendiente" />;
             case 'accepted':
-                return <Badge variant="verified">Aceptado</Badge>;
+                return <Badge variant="verified" label="Aceptado" />;
             case 'completed':
-                return <Badge variant="guarantee">Completado</Badge>;
+                return <Badge variant="guarantee" label="Completado" />;
             case 'cancelled':
-                return <Badge variant="cancelled">Cancelado</Badge>;
+                return <Badge variant="cancelled" label="Cancelado" />;
             default:
                 return null;
         }

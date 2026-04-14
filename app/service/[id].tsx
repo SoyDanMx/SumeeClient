@@ -272,7 +272,7 @@ export default function ServiceDetailScreen() {
                                     Desde ${service.min_price}
                                 </Text>
                                 {service.price_type === 'fixed' && (
-                                    <Badge variant="fixed-price">Precio Fijo</Badge>
+                                    <Badge variant="fixed-price" label="Precio Fijo" />
                                 )}
                             </View>
                         </View>

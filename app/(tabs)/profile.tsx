@@ -237,9 +237,9 @@ export default function ProfileScreen() {
                                 {displayEmail}
                             </Text>
                             <View style={styles.badgesRow}>
-                                <Badge variant="verified">Cliente Verificado</Badge>
+                                <Badge variant="verified" label="Cliente Verificado" />
                                 {stats.completed_services > 0 && (
-                                    <Badge variant="guarantee">Cliente Activo</Badge>
+                                    <Badge variant="guarantee" label="Cliente Activo" />
                                 )}
                             </View>
                         </>

@@ -17,11 +17,12 @@ type BadgeVariant =
 interface BadgeProps {
     variant: BadgeVariant;
     children?: React.ReactNode;
+    label?: string;
     icon?: keyof typeof Ionicons.glyphMap;
     style?: ViewStyle;
 }
 
-export function Badge({ variant, children, icon, style }: BadgeProps) {
+export function Badge({ variant, children, label, icon, style }: BadgeProps) {
     const { theme } = useTheme();
 
     const getConfig = () => {
@@ -88,7 +89,7 @@ export function Badge({ variant, children, icon, style }: BadgeProps) {
 
     const config = getConfig();
     const displayIcon = icon || config.defaultIcon;
-    const displayText = children || config.text;
+    const displayText = label ?? children ?? config.text;
 
     return (
         <View style={[styles.badge, { backgroundColor: config.backgroundColor }, style]}>

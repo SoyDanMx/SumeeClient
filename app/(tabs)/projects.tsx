@@ -86,11 +86,11 @@ export default function ProjectsScreen() {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'pending':
-                return <Badge variant="fast-response">Pendiente</Badge>;
+                return <Badge variant="fast-response" label="Pendiente" />;
             case 'accepted':
-                return <Badge variant="verified">Aceptado</Badge>;
+                return <Badge variant="verified" label="Aceptado" />;
             case 'completed':
-                return <Badge variant="guarantee">Completado</Badge>;
+                return <Badge variant="guarantee" label="Completado" />;
             default:
                 return null;
         }
