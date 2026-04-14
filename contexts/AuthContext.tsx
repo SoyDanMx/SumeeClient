@@ -2,7 +2,24 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { useRouter, useSegments } from 'expo-router';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { UserRole, isClientProfileEitherField } from '@/constants/roles';
+import { UserRole, isClientProfileForClientApp } from '@/constants/roles';
+
+const PROFILE_LOAD_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error(`TIMEOUT:${label}`)), ms);
+        promise
+            .then((v) => {
+                clearTimeout(t);
+                resolve(v);
+            })
+            .catch((e) => {
+                clearTimeout(t);
+                reject(e);
+            });
+    });
+}
 
 type AuthContextType = {
     user: User | null;
@@ -166,11 +183,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.log('[Auth] Loading profile for user:', user.id);
 
             // Fetch client profile - usar maybeSingle() para manejar cuando no existe
-            const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('user_id', user.id)
-                .maybeSingle(); // Cambiado de .single() a .maybeSingle() para manejar 0 filas
+            const { data: profileData, error: profileError } = await withTimeout(
+                Promise.resolve(
+                    supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle()
+                ),
+                PROFILE_LOAD_TIMEOUT_MS,
+                'profiles_select'
+            ); // Cambiado de .single() a .maybeSingle() para manejar 0 filas
 
             if (profileError) {
                 console.error('[Auth] Error fetching profile:', profileError);
@@ -200,19 +219,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                         ? `Usuario ${user.phone.slice(-4)}`
                         : 'Usuario TulBox';
 
-                const { data: newProfile, error: createError } = await supabase
-                    .from('profiles')
-                    .insert({
-                        user_id: user.id,
-                        email: user.email || null,
-                        phone: user.phone || null,
-                        full_name: fallbackName,
-                        role: UserRole.CLIENT,
-                        user_type: UserRole.CLIENT,
-                        onboarding_completed: false, // IMPORTANTE: Por defecto false para mostrar welcome
-                    })
-                    .select()
-                    .single();
+                const { data: newProfile, error: createError } = await withTimeout(
+                    Promise.resolve(
+                        supabase
+                            .from('profiles')
+                            .insert({
+                                user_id: user.id,
+                                email: user.email || null,
+                                phone: user.phone || null,
+                                full_name: fallbackName,
+                                role: UserRole.CLIENT,
+                                user_type: UserRole.CLIENT,
+                                onboarding_completed: false, // IMPORTANTE: Por defecto false para mostrar welcome
+                            })
+                            .select()
+                            .single()
+                    ),
+                    PROFILE_LOAD_TIMEOUT_MS,
+                    'profiles_insert'
+                );
 
                 if (createError) {
                     console.error('[Auth] Error creating profile:', createError);
@@ -246,8 +271,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 email: profileData?.email,
             });
 
-            // Solo clientes (cualquier columna coherente con cliente)
-            const isClient = isClientProfileEitherField(profileData);
+            // Solo clientes (incl. filas legacy sin role/user_type)
+            const isClient = isClientProfileForClientApp(profileData);
 
             if (!isClient) {
                 console.warn('[Auth] User is not a client:', {
@@ -268,7 +293,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setSession(session);
             setProfile(profileData);
         } catch (error) {
-            console.error('[Auth] Error loading profile:', error);
+            const msg = String((error as Error)?.message || '');
+            if (msg.startsWith('TIMEOUT:')) {
+                console.error('[Auth] Profile load timed out:', msg);
+            } else {
+                console.error('[Auth] Error loading profile:', error);
+            }
             setUser(null);
             setSession(null);
             setProfile(null);

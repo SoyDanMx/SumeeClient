@@ -22,6 +22,7 @@ import { useRouter } from 'expo-router';
 import * as ExpoLinking from 'expo-linking';
 import { Text } from '@/components/Text';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { mapAuthMessage, signInWithGoogle, signInWithApple } from '@/lib/auth/oauthProviders';
 
@@ -29,6 +30,7 @@ const TULBOX_PURPLE = '#820AD1';
 
 export default function LoginScreen() {
     const router = useRouter();
+    const { signInWithEmail } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -49,16 +51,13 @@ export default function LoginScreen() {
 
         setIsLoading(true);
         try {
-            const { error: signError } = await supabase.auth.signInWithPassword({
-                email: email.trim(),
-                password,
-            });
+            const { error: signError } = await signInWithEmail(email.trim(), password);
 
             if (signError) {
                 setError(mapAuthMessage(signError.message));
                 return;
             }
-            // AuthContext: onAuthStateChange carga perfil y redirige.
+            // AuthContext: signInWithEmail + onAuthStateChange cargan perfil y redirigen.
         } catch (err: any) {
             setError(mapAuthMessage(err?.message));
         } finally {

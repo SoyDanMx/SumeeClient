@@ -136,7 +136,7 @@ const slideStyles = StyleSheet.create({
 export default function WelcomeScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { user, reloadProfile, setHasSeenWelcome, isLoading: authLoading } = useAuth();
+    const { user, reloadProfile, setHasSeenWelcome, isLoading: authLoading, signInWithEmail } = useAuth();
     const listRef = useRef<FlatList<Slide>>(null);
 
     const [phase, setPhase] = useState<Phase>('slides');
@@ -233,10 +233,7 @@ export default function WelcomeScreen() {
         }
         setIsLoading(true);
         try {
-            const { error } = await supabase.auth.signInWithPassword({
-                email: email.trim(),
-                password,
-            });
+            const { error } = await signInWithEmail(email.trim(), password);
             if (error) setFormError(mapAuthMessage(error.message));
         } catch (err: any) {
             setFormError(mapAuthMessage(err?.message));
