@@ -28,6 +28,38 @@ export default function AllServicesScreen() {
     const [isSearching, setIsSearching] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState<'all' | 'express' | 'pro' | 'fixed'>('all');
 
+    // HOOKS: siempre antes de cualquier return condicional
+    const browseGroupsByDiscipline = useMemo(() => {
+        const ok = (service: ServiceItem) => {
+            if (selectedFilter === 'all') return true;
+            if (selectedFilter === 'express') return service.service_type === 'express';
+            if (selectedFilter === 'pro') return service.service_type === 'pro';
+            if (selectedFilter === 'fixed') return service.price_type === 'fixed';
+            return true;
+        };
+        return categoryGroups
+            .map((g) => ({
+                ...g,
+                services: g.services.filter(ok),
+            }))
+            .filter((g) => g.services.length > 0);
+    }, [categoryGroups, selectedFilter]);
+
+    const showSearchResults = searchQuery.trim().length > 0;
+    const displayServices = showSearchResults ? searchResults : [];
+
+    const searchGroupsByDiscipline = useMemo(() => {
+        if (!showSearchResults || displayServices.length === 0) return [];
+        const ok = (service: ServiceItem) => {
+            if (selectedFilter === 'all') return true;
+            if (selectedFilter === 'express') return service.service_type === 'express';
+            if (selectedFilter === 'pro') return service.service_type === 'pro';
+            if (selectedFilter === 'fixed') return service.price_type === 'fixed';
+            return true;
+        };
+        return ServicesService.groupServicesByDiscipline(displayServices.filter(ok));
+    }, [showSearchResults, displayServices, selectedFilter]);
+
     useEffect(() => {
         loadServices();
     }, []);
@@ -93,37 +125,6 @@ export default function AllServicesScreen() {
             </SafeAreaView>
         );
     }
-
-    const showSearchResults = searchQuery.trim().length > 0;
-    const displayServices = showSearchResults ? searchResults : [];
-
-    const browseGroupsByDiscipline = useMemo(() => {
-        const ok = (service: ServiceItem) => {
-            if (selectedFilter === 'all') return true;
-            if (selectedFilter === 'express') return service.service_type === 'express';
-            if (selectedFilter === 'pro') return service.service_type === 'pro';
-            if (selectedFilter === 'fixed') return service.price_type === 'fixed';
-            return true;
-        };
-        return categoryGroups
-            .map((g) => ({
-                ...g,
-                services: g.services.filter(ok),
-            }))
-            .filter((g) => g.services.length > 0);
-    }, [categoryGroups, selectedFilter]);
-
-    const searchGroupsByDiscipline = useMemo(() => {
-        if (!showSearchResults || displayServices.length === 0) return [];
-        const ok = (service: ServiceItem) => {
-            if (selectedFilter === 'all') return true;
-            if (selectedFilter === 'express') return service.service_type === 'express';
-            if (selectedFilter === 'pro') return service.service_type === 'pro';
-            if (selectedFilter === 'fixed') return service.price_type === 'fixed';
-            return true;
-        };
-        return ServicesService.groupServicesByDiscipline(displayServices.filter(ok));
-    }, [showSearchResults, displayServices, selectedFilter]);
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
