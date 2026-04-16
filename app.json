@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "TulBox",
+    "name": "Tulbox",
     "slug": "SumeeClient",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sumee.client",
+      "bundleIdentifier": "com.nuonetworks.tulbox",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "package": "com.sumee.client",
+      "package": "com.nuonetworks.tulbox",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#820AD1"

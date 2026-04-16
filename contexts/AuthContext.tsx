@@ -4,7 +4,8 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { UserRole, isClientProfileForClientApp } from '@/constants/roles';
 
-const PROFILE_LOAD_TIMEOUT_MS = 20_000;
+const PROFILE_LOAD_TIMEOUT_MS = 15_000;
+const PROFILE_LOAD_RETRY_TIMEOUT_MS = 25_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -19,6 +20,23 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                 reject(e);
             });
     });
+}
+
+async function selectProfileWithRetry(userId: string) {
+    const runQuery = () =>
+        Promise.resolve(supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle());
+
+    try {
+        return await withTimeout(runQuery(), PROFILE_LOAD_TIMEOUT_MS, 'profiles_select');
+    } catch (error) {
+        const msg = String((error as Error)?.message || '');
+        if (!msg.startsWith('TIMEOUT:')) {
+            throw error;
+        }
+
+        console.warn('[Auth] profiles_select timeout, retrying once with extended timeout...');
+        return withTimeout(runQuery(), PROFILE_LOAD_RETRY_TIMEOUT_MS, 'profiles_select_retry');
+    }
 }
 
 type AuthContextType = {
@@ -183,13 +201,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.log('[Auth] Loading profile for user:', user.id);
 
             // Fetch client profile - usar maybeSingle() para manejar cuando no existe
-            const { data: profileData, error: profileError } = await withTimeout(
-                Promise.resolve(
-                    supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle()
-                ),
-                PROFILE_LOAD_TIMEOUT_MS,
-                'profiles_select'
-            ); // Cambiado de .single() a .maybeSingle() para manejar 0 filas
+            const { data: profileData, error: profileError } = await selectProfileWithRetry(user.id);
 
             if (profileError) {
                 console.error('[Auth] Error fetching profile:', profileError);
@@ -295,13 +307,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (error) {
             const msg = String((error as Error)?.message || '');
             if (msg.startsWith('TIMEOUT:')) {
-                console.error('[Auth] Profile load timed out:', msg);
+                // Timeout de red transitorio: no destruir sesión local si ya existe.
+                console.warn('[Auth] Profile load timed out (transient):', msg);
             } else {
                 console.error('[Auth] Error loading profile:', error);
             }
-            setUser(null);
-            setSession(null);
-            setProfile(null);
+
+            const hasExistingSession = !!session || !!user;
+            if (!hasExistingSession) {
+                setUser(null);
+                setSession(null);
+                setProfile(null);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -324,7 +341,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.log('[Auth] Sign in successful, loading profile...');
 
             if (data.user && data.session) {
-                await loadUserProfile(data.user, data.session);
+                try {
+                    await loadUserProfile(data.user, data.session);
+                    // Validar si después de cargar el perfil realmente tenemos uno
+                    // (loadUserProfile establece profile a null si falla)
+                } catch (pErr: any) {
+                    console.error('[Auth] Profile load error during sign in:', pErr);
+                    return { error: pErr };
+                }
             }
 
             return { error: null };

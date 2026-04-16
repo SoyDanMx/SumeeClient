@@ -6,14 +6,14 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { GlassTabBarBackground } from '@/components/tabBar/GlassTabBarBackground';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type TabButtonProps = BottomTabBarButtonProps & {
     isDark: boolean;
     mode: 'A' | 'B';
 };
 
-const TAB_BAR_MODE: 'A' | 'B' =
-    String(process.env.EXPO_PUBLIC_TABBAR_STYLE_MODE || 'B').toUpperCase() === 'A' ? 'A' : 'B';
+const TAB_BAR_MODE: 'A' | 'B' = 'B'; // Forzado a B para visualizar Liquid Glass
 
 function TabPillButton({ isDark, mode, accessibilityState, style, children, ...rest }: TabButtonProps) {
     const selected = Boolean(accessibilityState?.selected);
@@ -24,21 +24,33 @@ function TabPillButton({ isDark, mode, accessibilityState, style, children, ...r
             style={[styles.tabButton, style]}
             android_ripple={{ color: 'transparent' }}
         >
-            <View
-                style={[
-                    styles.tabInner,
-                    selected &&
-                        (mode === 'A'
-                            ? isDark
-                                ? styles.tabInnerActiveDarkA
-                                : styles.tabInnerActiveA
-                            : isDark
-                              ? styles.tabInnerActiveDarkB
-                              : styles.tabInnerActiveB),
-                ]}
-            >
-                {children}
-            </View>
+                {selected && mode === 'B' && (
+                    <LinearGradient
+                        colors={
+                            isDark
+                                ? (['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.02)'] as const)
+                                : (['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.40)'] as const)
+                        }
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 0, y: 1 }}
+                        style={StyleSheet.absoluteFill}
+                    />
+                )}
+                <View
+                    style={[
+                        styles.tabInner,
+                        selected &&
+                            (mode === 'A'
+                                ? isDark
+                                    ? styles.tabInnerActiveDarkA
+                                    : styles.tabInnerActiveA
+                                : isDark
+                                  ? styles.tabInnerActiveDarkB
+                                  : styles.tabInnerActiveB),
+                    ]}
+                >
+                    {children}
+                </View>
         </Pressable>
     );
 }
@@ -84,8 +96,8 @@ export default function TabsLayout() {
                           overflow: 'hidden',
                           shadowColor: '#000',
                           shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: mode === 'A' ? (isDark ? 0.18 : 0.06) : isDark ? 0.26 : 0.1,
-                          shadowRadius: mode === 'A' ? 8 : 12,
+                          shadowOpacity: mode === 'A' ? (isDark ? 0.18 : 0.06) : isDark ? 0.35 : 0.15,
+                          shadowRadius: mode === 'A' ? 8 : 16,
                       }
                     : {
                           borderTopWidth: StyleSheet.hairlineWidth,
@@ -202,8 +214,12 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.9)',
     },
     tabInnerActiveDarkB: {
-        backgroundColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.22)',
+        borderColor: 'rgba(255,255,255,0.18)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
     },
 });

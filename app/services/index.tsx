@@ -252,85 +252,85 @@ export default function AllServicesScreen() {
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
             >
-                {showSearchResults ? (
-                    <>
-                        <View style={styles.section}>
-                            <Text variant="h3" weight="bold" style={styles.sectionTitle}>
-                                Resultados de búsqueda
-                            </Text>
-                            {isSearching ? (
-                                <View style={styles.loadingContainer}>
-                                    <ActivityIndicator size="small" color={theme.primary} />
-                                </View>
-                            ) : searchGroupsByDiscipline.length === 0 ? (
-                                <View style={styles.emptyContainer}>
-                                    <Ionicons name="search-outline" size={64} color={theme.textSecondary} />
-                                    <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
-                                        No se encontraron servicios
-                                    </Text>
-                                </View>
-                            ) : null}
-                        </View>
-                        {!isSearching &&
-                            searchGroupsByDiscipline.map((group) => (
-                            <View key={`search-${group.id}`} style={styles.section}>
-                                <View style={styles.sectionHeader}>
-                                    <View style={styles.groupHeader}>
-                                        <Ionicons name={group.icon} size={24} color={theme.primary} />
-                                        <Text variant="h3" weight="bold" style={styles.groupTitle}>
-                                            {group.name}
-                                        </Text>
-                                    </View>
-                                </View>
-                                {group.services.map((service) => (
-                                    <ServiceCard
-                                        key={service.id}
-                                        service={service}
-                                        onPress={() => handleServicePress(service)}
-                                    />
-                                ))}
+                {showSearchResults && (
+                    <View style={styles.section}>
+                        <Text variant="h3" weight="bold" style={styles.sectionTitle}>
+                            Resultados de búsqueda
+                        </Text>
+                        {isSearching ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="small" color={theme.primary} />
                             </View>
-                            ))}
-                        
-                        {/* WhatsApp Support Card - aparece al final de búsqueda */}
-                        <View style={styles.section}>
-                            <WhatsAppSupportCard searchQuery={searchQuery} />
+                        ) : searchGroupsByDiscipline.length === 0 ? (
+                            <View style={styles.emptyContainer}>
+                                <Ionicons name="search-outline" size={64} color={theme.textSecondary} />
+                                <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
+                                    No se encontraron servicios
+                                </Text>
+                            </View>
+                        ) : null}
+                    </View>
+                )}
+
+                {showSearchResults && !isSearching && searchGroupsByDiscipline.map((group) => (
+                    <View key={`search-${group.id}`} style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <View style={styles.groupHeader}>
+                                <Ionicons name={group.icon} size={24} color={theme.primary} />
+                                <Text variant="h3" weight="bold" style={styles.groupTitle}>
+                                    {String(group.name)}
+                                </Text>
+                            </View>
                         </View>
-                    </>
-                ) : browseGroupsByDiscipline.length === 0 ? (
+                        {group.services.map((service) => (
+                            <ServiceCard
+                                key={service.id}
+                                service={service}
+                                onPress={() => handleServicePress(service)}
+                            />
+                        ))}
+                    </View>
+                ))}
+
+                {showSearchResults && (
+                    <View style={styles.section}>
+                        <WhatsAppSupportCard searchQuery={searchQuery} />
+                    </View>
+                )}
+
+                {!showSearchResults && browseGroupsByDiscipline.length === 0 && (
                     <View style={[styles.section, styles.emptyContainer]}>
                         <Ionicons name="funnel-outline" size={48} color={theme.textSecondary} />
                         <Text variant="body" color={theme.textSecondary} style={styles.emptyText}>
                             No hay servicios con los filtros seleccionados
                         </Text>
                     </View>
-                ) : (
-                    <>
-                        {browseGroupsByDiscipline.map((group) => (
-                            <View key={group.id} style={styles.section}>
-                                <View style={styles.sectionHeader}>
-                                    <View style={styles.groupHeader}>
-                                        <Ionicons name={group.icon} size={24} color={theme.primary} />
-                                        <Text variant="h3" weight="bold" style={styles.groupTitle}>
-                                            {group.name}
-                                        </Text>
-                                    </View>
-                                </View>
-                                {group.services.map((service) => (
-                                    <ServiceCard
-                                        key={service.id}
-                                        service={service}
-                                        onPress={() => handleServicePress(service)}
-                                    />
-                                ))}
+                )}
+
+                {!showSearchResults && browseGroupsByDiscipline.length > 0 && browseGroupsByDiscipline.map((group) => (
+                    <View key={group.id} style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <View style={styles.groupHeader}>
+                                <Ionicons name={group.icon} size={24} color={theme.primary} />
+                                <Text variant="h3" weight="bold" style={styles.groupTitle}>
+                                    {String(group.name)}
+                                </Text>
                             </View>
-                        ))}
-                        
-                        {/* WhatsApp Support Card - aparece al final del catálogo completo */}
-                        <View style={styles.section}>
-                            <WhatsAppSupportCard />
                         </View>
-                    </>
+                        {group.services.map((service) => (
+                            <ServiceCard
+                                key={service.id}
+                                service={service}
+                                onPress={() => handleServicePress(service)}
+                            />
+                        ))}
+                    </View>
+                ))}
+
+                {!showSearchResults && browseGroupsByDiscipline.length > 0 && (
+                    <View style={styles.section}>
+                        <WhatsAppSupportCard />
+                    </View>
                 )}
             </ScrollView>
         </SafeAreaView>

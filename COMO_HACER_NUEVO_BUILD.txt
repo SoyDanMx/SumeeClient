@@ -1,0 +1,19 @@
+🔐 PROBLEMA: El APK descargado NO tiene las credenciales de Supabase
+
+El build que descargaste se hizo ANTES de configurar los secrets en EAS.
+
+✅ SOLUCIÓN: Hacer un nuevo build
+
+Ahora que los secrets están configurados, ejecuta:
+
+npx eas build --profile preview --platform android
+
+Este nuevo build SÍ incluirá las variables de Supabase y podrá conectarse correctamente.
+
+📝 ALTERNATIVA: Build local (como SumeePros)
+
+Si prefieres el método que usaste con SumeePros:
+
+npx eas build --profile preview --platform android --local
+
+Esto leerá tu .env directamente.

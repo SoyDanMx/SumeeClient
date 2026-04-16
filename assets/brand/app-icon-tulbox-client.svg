@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Tulbox app cliente</title>
+  <defs>
+    <linearGradient id="clientPurple" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#9D4AF0"/>
+      <stop offset="55%" stop-color="#820AD1"/>
+      <stop offset="100%" stop-color="#5E078F"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#clientPurple)"/>
+  <!-- Isotipo blanco, zona superior -->
+  <g transform="translate(512 328)">
+    <g transform="scale(21) translate(-12 -12)">
+      <path fill="#FFFFFF" d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+    </g>
+  </g>
+  <!-- Marca usuario final -->
+  <text
+    x="512"
+    y="798"
+    text-anchor="middle"
+    fill="#FFFFFF"
+    font-family="Segoe UI, Helvetica, Arial, sans-serif"
+    font-weight="700"
+    font-size="88"
+    letter-spacing="-2"
+  >Tulbox</text>
+</svg>

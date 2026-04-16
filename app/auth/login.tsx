@@ -3,7 +3,7 @@
  * Apple / Google: integración lista (mismo patrón Supabase + Expo).
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     StyleSheet,
@@ -20,6 +20,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import * as ExpoLinking from 'expo-linking';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 import { Text } from '@/components/Text';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,6 +29,13 @@ import { supabase } from '@/lib/supabase';
 import { mapAuthMessage, signInWithGoogle, signInWithApple } from '@/lib/auth/oauthProviders';
 
 const TULBOX_PURPLE = '#820AD1';
+const BIOMETRIC_PROMPT_MESSAGE = 'Inicia sesión en Sumee';
+const SECURE_KEYS = {
+    email: 'sumee_client_bio_email',
+    password: 'sumee_client_bio_password',
+    enabled: 'sumee_client_biometrics_enabled',
+    accessToken: 'sumee_client_auth_token',
+} as const;
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -36,9 +45,103 @@ export default function LoginScreen() {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
+    const [isInitializing, setIsInitializing] = useState(true);
+    const [biometricReady, setBiometricReady] = useState(false);
+    const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
 
     const showApple = Platform.OS === 'ios';
     const formBusy = isLoading || socialLoading !== null;
+
+    const persistSecureLoginData = async (nextEmail: string, nextPassword: string) => {
+        await SecureStore.setItemAsync(SECURE_KEYS.email, nextEmail);
+        await SecureStore.setItemAsync(SECURE_KEYS.password, nextPassword);
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (token) {
+            await SecureStore.setItemAsync(SECURE_KEYS.accessToken, token);
+        }
+    };
+
+    const askToEnableBiometrics = () =>
+        new Promise<boolean>((resolve) => {
+            Alert.alert(
+                'Acceso rápido',
+                '¿Deseas usar FaceID / Huella digital para entrar más rápido la próxima vez?',
+                [
+                    { text: 'Ahora no', style: 'cancel', onPress: () => resolve(false) },
+                    { text: 'Sí, activar', onPress: () => resolve(true) },
+                ],
+                {
+                    cancelable: true,
+                    onDismiss: () => resolve(false),
+                }
+            );
+        });
+
+    const runBiometricLogin = async (savedEmail: string, savedPassword: string) => {
+        const authResult = await LocalAuthentication.authenticateAsync({
+            promptMessage: BIOMETRIC_PROMPT_MESSAGE,
+            cancelLabel: 'Cancelar',
+            disableDeviceFallback: false,
+        });
+
+        if (!authResult.success) {
+            return false;
+        }
+
+        setEmail(savedEmail);
+        setPassword(savedPassword);
+        setIsLoading(true);
+        try {
+            const { error: signError } = await signInWithEmail(savedEmail, savedPassword);
+            if (signError) return false;
+            await persistSecureLoginData(savedEmail, savedPassword);
+            return true;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        let mounted = true;
+
+        const bootstrapBiometricLogin = async () => {
+            if (Platform.OS === 'web') {
+                if (mounted) setIsInitializing(false);
+                return;
+            }
+
+            try {
+                const [savedEmail, savedPassword, biometricsEnabled, hasHardware, isEnrolled] = await Promise.all([
+                    SecureStore.getItemAsync(SECURE_KEYS.email),
+                    SecureStore.getItemAsync(SECURE_KEYS.password),
+                    SecureStore.getItemAsync(SECURE_KEYS.enabled),
+                    LocalAuthentication.hasHardwareAsync(),
+                    LocalAuthentication.isEnrolledAsync(),
+                ]);
+
+                if (!mounted) return;
+
+                const canUseBiometric = hasHardware && isEnrolled;
+                const hasCreds = Boolean(savedEmail && savedPassword);
+                setBiometricReady(canUseBiometric);
+                setHasStoredCredentials(hasCreds);
+
+                if (canUseBiometric && hasCreds && biometricsEnabled === 'true') {
+                    await runBiometricLogin(savedEmail!, savedPassword!);
+                }
+            } catch (e) {
+                console.warn('[Login] Biometric bootstrap skipped:', e);
+            } finally {
+                if (mounted) setIsInitializing(false);
+            }
+        };
+
+        bootstrapBiometricLogin();
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const handleLogin = async () => {
         if (formBusy) return;
@@ -51,11 +154,22 @@ export default function LoginScreen() {
 
         setIsLoading(true);
         try {
-            const { error: signError } = await signInWithEmail(email.trim(), password);
+            const normalizedEmail = email.trim();
+            const { error: signError } = await signInWithEmail(normalizedEmail, password);
 
             if (signError) {
                 setError(mapAuthMessage(signError.message));
                 return;
+            }
+
+            if (Platform.OS !== 'web') {
+                await persistSecureLoginData(normalizedEmail, password);
+
+                const biometricsEnabled = await SecureStore.getItemAsync(SECURE_KEYS.enabled);
+                if (biometricReady && biometricsEnabled !== 'true') {
+                    const enableBiometrics = await askToEnableBiometrics();
+                    await SecureStore.setItemAsync(SECURE_KEYS.enabled, enableBiometrics ? 'true' : 'false');
+                }
             }
             // AuthContext: signInWithEmail + onAuthStateChange cargan perfil y redirigen.
         } catch (err: any) {
@@ -108,6 +222,32 @@ export default function LoginScreen() {
             setSocialLoading(null);
         }
     };
+
+    const handleBiometricPress = async () => {
+        if (formBusy || !biometricReady || !hasStoredCredentials || Platform.OS === 'web') return;
+        setError(null);
+        try {
+            const [savedEmail, savedPassword] = await Promise.all([
+                SecureStore.getItemAsync(SECURE_KEYS.email),
+                SecureStore.getItemAsync(SECURE_KEYS.password),
+            ]);
+            if (!savedEmail || !savedPassword) return;
+            await runBiometricLogin(savedEmail, savedPassword);
+        } catch (e) {
+            console.warn('[Login] Biometric manual attempt skipped:', e);
+        }
+    };
+
+    if (isInitializing) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+                <StatusBar style="dark" />
+                <View style={styles.initialLoader}>
+                    <ActivityIndicator size="large" color={TULBOX_PURPLE} />
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -200,6 +340,20 @@ export default function LoginScreen() {
                                 </Text>
                             )}
                         </TouchableOpacity>
+
+                        {biometricReady && hasStoredCredentials && (
+                            <TouchableOpacity
+                                style={styles.biometricButton}
+                                onPress={handleBiometricPress}
+                                disabled={formBusy}
+                                activeOpacity={0.85}
+                            >
+                                <Ionicons name="finger-print-outline" size={20} color={TULBOX_PURPLE} />
+                                <Text variant="body" weight="bold" color={TULBOX_PURPLE}>
+                                    Entrar con FaceID / Huella
+                                </Text>
+                            </TouchableOpacity>
+                        )}
 
                         <View style={styles.divider}>
                             <View style={styles.dividerLine} />
@@ -296,6 +450,11 @@ const styles = StyleSheet.create({
     keyboardView: {
         flex: 1,
     },
+    initialLoader: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: 24,
@@ -361,6 +520,19 @@ const styles = StyleSheet.create({
     primaryButtonText: {
         color: '#FFFFFF',
         fontSize: 16,
+    },
+    biometricButton: {
+        minHeight: 52,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#DDD6FE',
+        backgroundColor: '#F5F3FF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: -8,
+        marginBottom: 24,
     },
     divider: {
         flexDirection: 'row',

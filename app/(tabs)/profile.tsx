@@ -528,9 +528,9 @@ export default function ProfileScreen() {
                                 });
                             }}
                         >
-                            <Ionicons name="shield-checkmark-outline" size={20} color={theme.text} />
+                            <Ionicons name="shield-outline" size={20} color={theme.text} />
                             <Text variant="body" style={styles.settingsText}>
-                                Privacidad y Seguridad
+                                Política de Privacidad
                             </Text>
                             <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
                         </TouchableOpacity>

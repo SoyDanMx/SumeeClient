@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Permitir tráfico HTTP en desarrollo (solo si es necesario) -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Confiar en certificados del sistema -->
+            <certificates src="system" />
+            <!-- Confiar en certificados de usuario (para debugging) -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Configuración específica para Supabase -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">supabase.co</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

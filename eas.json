@@ -1,0 +1,22 @@
+{
+  "cli": { "version": ">= 5.9.1", "appVersionSource": "remote" },
+  "build": {
+    "development": { "developmentClient": true, "distribution": "internal", "ios": { "simulator": true } },
+    "preview": {
+      "environment": "preview",
+      "distribution": "internal",
+      "channel": "preview",
+      "ios": { "simulator": true, "buildConfiguration": "Release" },
+      "android": { "buildType": "apk" },
+      "env": { "EXPO_PUBLIC_API_URL": "https://tulbox.pro" }
+    },
+    "production": {
+      "environment": "production",
+      "channel": "production",
+      "ios": { "buildConfiguration": "Release" },
+      "android": { "buildType": "app-bundle" },
+      "env": { "EXPO_PUBLIC_API_URL": "https://tulbox.pro" }
+    }
+  },
+  "submit": { "production": {} }
+}
