@@ -8,6 +8,7 @@ import {
     TextInput,
     Linking,
     TouchableOpacity,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +18,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Text } from '@/components/Text';
 import { Button } from '@/components/Button';
 import { Ionicons } from '@expo/vector-icons';
+import { mapSignUpError } from '@/lib/auth/oauthProviders';
 
 export default function RegisterScreen() {
     const { theme } = useTheme();
@@ -55,11 +57,24 @@ export default function RegisterScreen() {
         try {
             const result = await signUpWithEmail(email, password, fullName);
 
+            if (result.needsEmailConfirmation) {
+                Alert.alert(
+                    'Revisa tu correo',
+                    'Te enviamos un enlace para confirmar tu cuenta. Cuando lo actives, podrás iniciar sesión.',
+                    [{ text: 'Ir a iniciar sesión', onPress: () => router.replace('/auth/login') }]
+                );
+                return;
+            }
+
             if (result.error) {
-                setError(result.error.message || 'Error al registrarse');
+                const msg =
+                    typeof result.error?.message === 'string'
+                        ? mapSignUpError(result.error.message)
+                        : 'Error al registrarse';
+                setError(msg);
             }
         } catch (err: any) {
-            setError(err.message || 'Error inesperado');
+            setError(mapSignUpError(err?.message) || 'Error inesperado');
         } finally {
             setLoading(false);
         }

@@ -21,6 +21,19 @@ export function mapAuthMessage(message: string | undefined): string {
     return message;
 }
 
+/** Mensajes de Supabase Auth al registrarse (suelen venir en inglés) */
+export function mapSignUpError(message: string | undefined): string {
+    if (!message) return 'No se pudo crear la cuenta.';
+    const m = message.toLowerCase();
+    if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already exists')) {
+        return 'Ya existe una cuenta con este correo. Inicia sesión.';
+    }
+    if (m.includes('password')) {
+        return 'Revisa la contraseña (longitud o requisitos).';
+    }
+    return message;
+}
+
 export async function finalizeOAuthFromCallbackUrl(callbackUrl: string): Promise<{ error: Error | null }> {
     try {
         let code: string | null = null;

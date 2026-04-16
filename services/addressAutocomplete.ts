@@ -23,22 +23,27 @@ export interface AddressSuggestion {
  * Obtiene sugerencias de direcciones usando OpenStreetMap Nominatim
  * @param query - Texto de búsqueda (mínimo 3 caracteres)
  * @param limit - Número máximo de sugerencias (default: 5)
+ * @param options.preferAddresses - Prioriza resultados tipo calle/número (capa `address`)
  * @returns Array de sugerencias de direcciones
  */
 export async function getAddressSuggestions(
     query: string,
-    limit: number = 5
+    limit: number = 5,
+    options?: { preferAddresses?: boolean }
 ): Promise<AddressSuggestion[]> {
     if (!query || query.length < 3) {
         return [];
     }
 
+    const preferAddresses = options?.preferAddresses !== false;
+
     try {
         console.log('[AddressAutocomplete] Buscando sugerencias para:', query);
-        
+
+        const layer = preferAddresses ? '&layer=address' : '';
         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
             query
-        )}&format=json&limit=${limit}&addressdetails=1&countrycodes=mx&accept-language=es`;
+        )}&format=json&limit=${limit}&addressdetails=1&countrycodes=mx&accept-language=es&dedupe=1${layer}`;
 
         console.log('[AddressAutocomplete] URL:', url);
 
@@ -60,10 +65,28 @@ export async function getAddressSuggestions(
             return [];
         }
 
-        const data: AddressSuggestion[] = await response.json();
+        let data: AddressSuggestion[] = await response.json();
         console.log('[AddressAutocomplete] Sugerencias encontradas:', data.length);
         console.log('[AddressAutocomplete] Primera sugerencia:', data[0]?.display_name);
-        
+
+        // Si la capa `address` no devuelve nada (consulta muy corta o zona rural), reintentar sin capa
+        if (preferAddresses && (!data || data.length === 0)) {
+            const fallbackUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+                query
+            )}&format=json&limit=${limit}&addressdetails=1&countrycodes=mx&accept-language=es&dedupe=1`;
+            const r2 = await fetch(fallbackUrl, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'TulBoxApp/1.0',
+                    Accept: 'application/json',
+                    'Accept-Language': 'es-MX,es;q=0.9',
+                },
+            });
+            if (r2.ok) {
+                data = await r2.json();
+            }
+        }
+
         return data || [];
     } catch (error: any) {
         console.error('[AddressAutocomplete] Error al obtener sugerencias de dirección:', error);
@@ -87,6 +110,7 @@ export function formatAddressSuggestion(suggestion: AddressSuggestion): string {
             }
         }
         if (suggestion.address.suburb) parts.push(suggestion.address.suburb);
+        if (suggestion.address.postcode) parts.push(`C.P. ${suggestion.address.postcode}`);
         if (suggestion.address.city) parts.push(suggestion.address.city);
         if (suggestion.address.state) parts.push(suggestion.address.state);
 

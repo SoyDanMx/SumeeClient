@@ -3,6 +3,7 @@ import { useRouter, useSegments } from 'expo-router';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { UserRole, isClientProfileForClientApp } from '@/constants/roles';
+import { profileNeedsServiceArea } from '@/lib/profileSetup';
 
 const PROFILE_LOAD_TIMEOUT_MS = 15_000;
 const PROFILE_LOAD_RETRY_TIMEOUT_MS = 25_000;
@@ -45,7 +46,11 @@ type AuthContextType = {
     isAuthenticated: boolean;
     isLoading: boolean;
     signInWithEmail: (email: string, password: string) => Promise<{ error: any }>;
-    signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+    signUpWithEmail: (
+        email: string,
+        password: string,
+        fullName: string
+    ) => Promise<{ error: any; needsEmailConfirmation?: boolean }>;
     signInWithPhone: (phone: string) => Promise<{ error: any }>;
     verifyOtp: (phone: string, token: string) => Promise<{ error: any }>;
     signOut: () => Promise<void>;
@@ -127,8 +132,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         const isAuth = !!user && !!session;
         const inAuthGroup = segments[0] === 'auth';
-        const inTabsGroup = segments[0] === '(tabs)';
         const inOnboardingGroup = segments[0] === 'onboarding';
+        const seg = segments as readonly string[];
+        const inServiceAreaScreen = seg[0] === 'onboarding' && seg[1] === 'service-area';
 
         console.log('[Auth] Redirect Check:', { isAuth, segments, hasSeenWelcome });
 
@@ -144,11 +150,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else {
             // Usuario Autenticado
             const hasCompletedOnboarding = profile?.onboarding_completed === true;
+            const needsServiceArea = !hasCompletedOnboarding && profileNeedsServiceArea(profile);
 
-            if (!hasCompletedOnboarding && !inOnboardingGroup) {
-                router.replace('/onboarding/welcome');
-            } else if (hasCompletedOnboarding && (inAuthGroup || inOnboardingGroup)) {
+            if (hasCompletedOnboarding && (inAuthGroup || inOnboardingGroup)) {
                 router.replace('/(tabs)');
+                return;
+            }
+
+            if (!hasCompletedOnboarding) {
+                if (needsServiceArea && !inServiceAreaScreen) {
+                    router.replace('/onboarding/service-area');
+                    return;
+                }
+                if (!inOnboardingGroup) {
+                    router.replace('/onboarding/welcome');
+                }
             }
         }
     }, [user, session, isLoading, segments, profile, hasSeenWelcome, router]);
@@ -242,7 +258,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                                 full_name: fallbackName,
                                 role: UserRole.CLIENT,
                                 user_type: UserRole.CLIENT,
-                                onboarding_completed: false, // IMPORTANTE: Por defecto false para mostrar welcome
+                                onboarding_completed: false,
                             })
                             .select()
                             .single()
@@ -374,26 +390,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 return { error };
             }
 
-            if (data.user && data.session) {
-                // Create profile
-                const { error: profileError } = await supabase
-                    .from('profiles')
-                    .insert({
-                        user_id: data.user.id,
-                        email: email,
-                        full_name: fullName,
-                        user_type: UserRole.CLIENT,
-                        role: UserRole.CLIENT,
-                    });
-
-                if (profileError) {
-                    console.error('[Auth] Error creating profile:', profileError);
-                    return { error: profileError };
-                }
-
-                await loadUserProfile(data.user, data.session);
+            if (!data.user) {
+                return { error: new Error('No se pudo crear la cuenta.') };
             }
 
+            // Confirmación por correo activada en Supabase: no hay sesión hasta confirmar
+            if (!data.session) {
+                return { error: null, needsEmailConfirmation: true };
+            }
+
+            const { error: profileError } = await supabase.from('profiles').insert({
+                user_id: data.user.id,
+                email: email,
+                full_name: fullName,
+                user_type: UserRole.CLIENT,
+                role: UserRole.CLIENT,
+                onboarding_completed: false,
+            });
+
+            if (profileError) {
+                // Perfil duplicado (reintento): cargar el existente
+                if (profileError.code === '23505') {
+                    await loadUserProfile(data.user, data.session);
+                    router.replace('/onboarding/service-area');
+                    return { error: null };
+                }
+                console.error('[Auth] Error creating profile:', profileError);
+                return { error: profileError };
+            }
+
+            await loadUserProfile(data.user, data.session);
+            // La sesión existe pero el estado de React puede aplicarse después; forzar ruta siguiente
+            router.replace('/onboarding/service-area');
             return { error: null };
         } catch (error: any) {
             return { error };
